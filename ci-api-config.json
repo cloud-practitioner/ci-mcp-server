@@ -747,14 +747,7 @@
             "update": { "enabled": true,  "requiredScope": "write" },
             "delete": false
           },
-          "filterableProperties": ["name", "title", "description", "destType", "isOnPremise", "host", "port", "useSSL", "authType", "url", "pathPrefix", "region"],
-          "navigationProperties": [
-            {
-              "name": "apiProxies",
-              "description": "the API proxies that target this API provider",
-              "isCollection": true
-            }
-          ]
+          "filterableProperties": ["name", "title", "description", "destType", "isOnPremise", "host", "port", "useSSL", "authType", "url", "pathPrefix", "region"]
         },
 
         {
@@ -769,34 +762,7 @@
             "update": { "enabled": true,  "requiredScope": "write" },
             "delete": false
           },
-          "filterableProperties": ["name", "title", "description", "provider_name", "state", "status_code", "releaseStatus", "service_code", "version", "revisionID", "isPublished", "isVersioned", "hasChanges", "apiVersionGroup"],
-          "navigationProperties": [
-            {
-              "name": "proxyEndPoints",
-              "description": "the proxy endpoints (base_path, virtual hosts, route rules, flows) through which clients call this API proxy",
-              "isCollection": true
-            },
-            {
-              "name": "targetEndPoints",
-              "description": "the target endpoints (backend url or API provider plus relativePath) this API proxy forwards requests to",
-              "isCollection": true
-            },
-            {
-              "name": "policies",
-              "description": "the policies (e.g. quota, spike arrest, verify API key, assign message) attached to this API proxy",
-              "isCollection": true
-            },
-            {
-              "name": "apiProvider",
-              "description": "the API provider this API proxy targets (not found when provider_name is 'NONE', i.e. the proxy targets a plain url)",
-              "isCollection": false
-            },
-            {
-              "name": "apiProducts",
-              "description": "the API products that bundle this API proxy",
-              "isCollection": true
-            }
-          ]
+          "filterableProperties": ["name", "title", "description", "provider_name", "state", "status_code", "releaseStatus", "service_code", "version", "revisionID", "isPublished", "isVersioned", "hasChanges", "apiVersionGroup"]
         },
 
         {
@@ -826,14 +792,7 @@
             "update": { "enabled": true,  "requiredScope": "write", "method": "PUT" },
             "delete": false
           },
-          "filterableProperties": ["name", "title", "description", "isPublished", "isRestricted", "scope", "status_code", "version", "quotaCount", "quotaInterval", "quotaTimeUnit"],
-          "navigationProperties": [
-            {
-              "name": "apiProxies",
-              "description": "the API proxies bundled in this API product",
-              "isCollection": true
-            }
-          ]
+          "filterableProperties": ["name", "title", "description", "isPublished", "isRestricted", "scope", "status_code", "version", "quotaCount", "quotaInterval", "quotaTimeUnit"]
         },
 
         {
@@ -848,19 +807,7 @@
             "update": { "enabled": true,  "requiredScope": "write" },
             "delete": false
           },
-          "filterableProperties": ["id", "name", "FK_API_NAME", "base_path", "isDefault"],
-          "navigationProperties": [
-            {
-              "name": "virtualhosts",
-              "description": "the virtual hosts (hostname and port) on which this proxy endpoint is exposed",
-              "isCollection": true
-            },
-            {
-              "name": "routeRules",
-              "description": "the route rules that map this proxy endpoint to target endpoints by targetEndPointName",
-              "isCollection": true
-            }
-          ]
+          "filterableProperties": ["id", "name", "FK_API_NAME", "base_path", "isDefault"]
         },
 
         {
@@ -905,14 +852,7 @@
             "update": { "enabled": true,  "requiredScope": "write" },
             "delete": false
           },
-          "filterableProperties": ["name", "scope", "encrypted"],
-          "navigationProperties": [
-            {
-              "name": "keyMapEntryValues",
-              "description": "the key/value entries stored in this key value map",
-              "isCollection": true
-            }
-          ]
+          "filterableProperties": ["name", "scope", "encrypted"]
         },
 
         {
@@ -949,14 +889,7 @@
             "update": { "enabled": true,  "requiredScope": "write" },
             "delete": false
           },
-          "filterableProperties": ["name", "scope", "scopeId", "isEncrypted"],
-          "navigationProperties": [
-            {
-              "name": "genericKeyMapEntryValues",
-              "description": "the key/value entries stored in this scoped key value map",
-              "isCollection": true
-            }
-          ]
+          "filterableProperties": ["name", "scope", "scopeId", "isEncrypted"]
         },
 
         {
