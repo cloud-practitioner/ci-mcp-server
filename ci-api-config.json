@@ -726,6 +726,260 @@
           ]
         }
       ]
+    },
+
+    {
+      "name": "api-management",
+      "destination": "API_DESTINATION",
+      "pathPrefix": "/apiportal/api/1.0/Management.svc",
+      "csrfProtected": true,
+      "entitySets": [
+
+        {
+          "entitySet": "APIProviders",
+          "description": "SAP API Management API providers - named backend connections (URL or BTP destination, host, port, SSL, auth type, on-premise flag) that API proxies target. Creating a proxy starts here: create or pick a provider (POST with name, title, destType, host/url, port, useSSL), then point the proxy's target endpoint at it via provider_id; alternatively a target endpoint can use a plain url with provider_id 'NONE'",
+          "category": "api-management",
+          "keys": [{ "name": "name", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["name", "title", "description", "destType", "isOnPremise", "host", "port", "useSSL", "authType", "url", "pathPrefix", "region"],
+          "navigationProperties": [
+            {
+              "name": "apiProxies",
+              "description": "the API proxies that target this API provider",
+              "isCollection": true
+            }
+          ]
+        },
+
+        {
+          "entitySet": "APIProxies",
+          "description": "SAP API Management API proxies - the managed facade in front of a backend, with proxy endpoints (base_path, virtual hosts, route rules), target endpoints (backend url or API provider), policies, and lifecycle state (state is DEPLOYED once deployed). Key is name, e.g. path \"('MyAPI')\" or \"(name='MyAPI')\". Create-proxy flow: (1) API provider via APIProviders, or skip and use a plain target url; (2) POST the proxy here with name, title, releaseStatus 'Active', service_code 'REST' and deep-inserted proxyEndPoints (name 'default', base_path, isDefault true, virtualhosts linked to a VirtualHosts entry by __metadata uri, routeRules) and targetEndPoints (name 'default', isDefault true, url or provider_id plus relativePath); (3) deploy it via APIProxyDeployments_create and confirm with APIProxyDeployments_get; (4) only then attach it to a product via APIProducts - a proxy must be deployed before it can be added to a product. Use $expand=proxyEndPoints/routeRules,proxyEndPoints/virtualhosts,targetEndPoints to see a working proxy's full shape before creating a similar one",
+          "category": "api-management",
+          "keys": [{ "name": "name", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["name", "title", "description", "provider_name", "state", "status_code", "releaseStatus", "service_code", "version", "revisionID", "isPublished", "isVersioned", "hasChanges", "apiVersionGroup"],
+          "navigationProperties": [
+            {
+              "name": "proxyEndPoints",
+              "description": "the proxy endpoints (base_path, virtual hosts, route rules, flows) through which clients call this API proxy",
+              "isCollection": true
+            },
+            {
+              "name": "targetEndPoints",
+              "description": "the target endpoints (backend url or API provider plus relativePath) this API proxy forwards requests to",
+              "isCollection": true
+            },
+            {
+              "name": "policies",
+              "description": "the policies (e.g. quota, spike arrest, verify API key, assign message) attached to this API proxy",
+              "isCollection": true
+            },
+            {
+              "name": "apiProvider",
+              "description": "the API provider this API proxy targets (not found when provider_name is 'NONE', i.e. the proxy targets a plain url)",
+              "isCollection": false
+            },
+            {
+              "name": "apiProducts",
+              "description": "the API products that bundle this API proxy",
+              "isCollection": true
+            }
+          ]
+        },
+
+        {
+          "entitySet": "APIProxyDeployments",
+          "description": "SAP API Management API proxy deployments - one record per deployed API proxy, keyed by the proxy name, with revisionID and state (DEPLOYED or UNDEPLOYED). Deploying a proxy is a create on this entity set, not an action: POST with body {\"name\": \"<proxy name>\", \"state\": \"DEPLOYED\"} (the same POST with state UNDEPLOYED undeploys it). A proxy must be deployed before it can be attached to an API product",
+          "category": "api-management",
+          "keys": [{ "name": "name", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["name", "revisionID", "state"]
+        },
+
+        {
+          "entitySet": "APIProducts",
+          "description": "SAP API Management API products - bundles of deployed API proxies published to developers, with quota (quotaCount, quotaInterval, quotaTimeUnit), scope, and isRestricted flag. A product links proxies through its many-to-many apiProxies navigation property: in the create or update body pass \"apiProxies\": [{\"__metadata\": {\"uri\": \"APIProxies('<proxy name>')\"}}]. Only deployed proxies can be attached (check APIProxyDeployments first). Updates replace the whole product (PUT to APIProducts('<product>')), so send the full entity including every apiProxies link you want to keep",
+          "category": "api-management",
+          "keys": [{ "name": "name", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write", "method": "PUT" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["name", "title", "description", "isPublished", "isRestricted", "scope", "status_code", "version", "quotaCount", "quotaInterval", "quotaTimeUnit"],
+          "navigationProperties": [
+            {
+              "name": "apiProxies",
+              "description": "the API proxies bundled in this API product",
+              "isCollection": true
+            }
+          ]
+        },
+
+        {
+          "entitySet": "APIProxyEndPoints",
+          "description": "SAP API Management proxy endpoints - the client-facing side of an API proxy (base_path, isDefault, linked virtual hosts, route rules to target endpoints, pre/post flows), keyed by a generated id and linked to their proxy via FK_API_NAME. Usually created by deep insert with the proxy; filter by FK_API_NAME to find a proxy's endpoints",
+          "category": "api-management",
+          "keys": [{ "name": "id", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["id", "name", "FK_API_NAME", "base_path", "isDefault"],
+          "navigationProperties": [
+            {
+              "name": "virtualhosts",
+              "description": "the virtual hosts (hostname and port) on which this proxy endpoint is exposed",
+              "isCollection": true
+            },
+            {
+              "name": "routeRules",
+              "description": "the route rules that map this proxy endpoint to target endpoints by targetEndPointName",
+              "isCollection": true
+            }
+          ]
+        },
+
+        {
+          "entitySet": "APITargetEndPoints",
+          "description": "SAP API Management target endpoints - the backend side of an API proxy (a plain url, or provider_id naming an API provider plus relativePath, with load balancer settings and pre/post flows), keyed by a generated id and linked to their proxy via FK_API_NAME. Usually created by deep insert with the proxy; filter by FK_API_NAME to find a proxy's targets",
+          "category": "api-management",
+          "keys": [{ "name": "id", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["id", "name", "FK_API_NAME", "provider_id", "url", "relativePath", "isDefault", "targetAPIProxyName"]
+        },
+
+        {
+          "entitySet": "VirtualHosts",
+          "description": "SAP API Management virtual hosts - the hostnames and ports (virtual_host, virtual_port, isSSL, isDefault) on which proxy endpoints are exposed. Look up the default virtual host's id here and link it from a new proxy endpoint's virtualhosts",
+          "category": "api-management",
+          "keys": [{ "name": "id", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["id", "name", "virtual_host", "virtual_port", "isDefault", "isSSL", "isClientAuthEnabled", "isForCustomDomain"]
+        },
+
+        {
+          "entitySet": "KeyMapEntries",
+          "description": "SAP API Management environment key value maps - named, optionally encrypted maps that policies read at runtime (e.g. backend credentials or settings), keyed by name. Create a map with its entries in one call by deep-inserting keyMapEntryValues ([{\"name\": \"<key>\", \"value\": \"<value>\"}])",
+          "category": "api-management",
+          "keys": [{ "name": "name", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["name", "scope", "encrypted"],
+          "navigationProperties": [
+            {
+              "name": "keyMapEntryValues",
+              "description": "the key/value entries stored in this key value map",
+              "isCollection": true
+            }
+          ]
+        },
+
+        {
+          "entitySet": "KeyMapEntryValues",
+          "description": "SAP API Management key value map entries - single key/value pairs inside an environment key value map, keyed by map_name (the owning map) and name (the entry key)",
+          "category": "api-management",
+          "keys": [
+            { "name": "map_name", "type": "string" },
+            { "name": "name", "type": "string" }
+          ],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["map_name", "name"]
+        },
+
+        {
+          "entitySet": "GenericKeyMapEntries",
+          "description": "SAP API Management scoped (generic) key value maps - key value maps bound to a scope and scopeId (the level and owning artifact the map belongs to), optionally encrypted, keyed by name, scope and scopeId. Create a map with its entries in one call by deep-inserting genericKeyMapEntryValues",
+          "category": "api-management",
+          "keys": [
+            { "name": "name", "type": "string" },
+            { "name": "scope", "type": "string" },
+            { "name": "scopeId", "type": "string" }
+          ],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["name", "scope", "scopeId", "isEncrypted"],
+          "navigationProperties": [
+            {
+              "name": "genericKeyMapEntryValues",
+              "description": "the key/value entries stored in this scoped key value map",
+              "isCollection": true
+            }
+          ]
+        },
+
+        {
+          "entitySet": "GenericKeyMapEntryValues",
+          "description": "SAP API Management scoped key value map entries - single key/value pairs inside a scoped key value map, keyed by mapName, name (the entry key), scope and scopeId",
+          "category": "api-management",
+          "keys": [
+            { "name": "mapName", "type": "string" },
+            { "name": "name", "type": "string" },
+            { "name": "scope", "type": "string" },
+            { "name": "scopeId", "type": "string" }
+          ],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": { "enabled": false }
+          },
+          "filterableProperties": ["mapName", "name", "scope", "scopeId"]
+        }
+
+      ]
     }
  ]
 }

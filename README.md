@@ -88,6 +88,22 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 | `AlternativePartners` | list, get, create, update, delete | Additional partner identifiers (DUNS, GLN) mapping to a primary partner |
 | `AuthorizedUsers` | list, get, create, update, delete | Users permitted to send messages on behalf of a specific partner |
 
+### API Management
+
+Served from the SAP API Management API portal (`API_DESTINATION`, path `/apiportal/api/1.0/Management.svc`). Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
+
+| Tool | Operations | Description |
+|------|-----------|-------------|
+| `APIProviders` | list, get, create, update | Named backend connections that API proxies target |
+| `APIProxies` | list, get, create, update | API proxies with their proxy endpoints, target endpoints, and policies |
+| `APIProxyDeployments` | list, get, create, update | Proxy deployment records; deploying a proxy is a create here |
+| `APIProducts` | list, get, create, update | Bundles of deployed API proxies published to developers |
+| `APIProxyEndPoints` | list, get, create, update | Client-facing side of a proxy (base path, virtual hosts, route rules) |
+| `APITargetEndPoints` | list, get, create, update | Backend side of a proxy (URL or API provider) |
+| `VirtualHosts` | list, get, create, update | Hostnames and ports on which proxy endpoints are exposed |
+| `KeyMapEntries`, `KeyMapEntryValues` | list, get, create, update | Environment key value maps and their entries |
+| `GenericKeyMapEntries`, `GenericKeyMapEntryValues` | list, get, create, update | Scoped key value maps and their entries |
+
 All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`.
 
 ## Prerequisites
@@ -120,11 +136,12 @@ npm install
 
 ### 2. Configure BTP destination
 
-Create a BTP Destination pointing to the CPI OData API:
+Create the BTP Destinations the config refers to:
 
 | Destination | URL |
 |-------------|-----|
 | `CPI_DESTINATION` | `https://<tenant>.it-cpi0<xx>.cfapps.<region>.hana.ondemand.com` |
+| `API_DESTINATION` | API Management API portal URL (from the API portal service key), used by the analytics and API Management tools |
 
 The destination should use OAuth2 client credentials authentication with the CPI service key credentials.
 
