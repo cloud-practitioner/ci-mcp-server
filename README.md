@@ -22,9 +22,9 @@ AI Assistant (Claude, Cursor, etc.)
 
 Think of it like the [SAP Application Router](https://www.npmjs.com/package/@sap/approuter) -- a ready-made runtime you configure, not code you write.
 
-## Exposed CPI APIs
+## Exposed APIs
 
-The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData API, organized into the following categories:
+The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData API and the SAP API Management API, organized into the following categories:
 
 ### Integration Content
 
@@ -115,7 +115,8 @@ All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand
 - **Node.js** 18+ (20+ recommended)
 - **SAP BTP account** with a Cloud Foundry environment
 - **SAP Cloud Integration** tenant (part of SAP Integration Suite)
-- **BTP Destination** configured for the CPI OData API with OAuth2 authentication
+- **SAP API Management** (API portal) subscription, only for the API Management tools
+- **BTP Destinations** with OAuth2 authentication (see [Configure BTP destination](#2-configure-btp-destination))
 - **Cloud Foundry CLI** (`cf`) and **MBT Build Tool** (`mbt`) for deployment
 
 ## Project Structure
@@ -177,8 +178,8 @@ The XSUAA configuration (`xs-security.json`) defines three role templates:
 
 | Role | Scopes | Description |
 |------|--------|-------------|
-| `MCPViewer` | read | Read-only access to CPI data |
-| `MCPEditor` | read, write | Read and modify CPI data |
+| `MCPViewer` | read | Read-only access to CPI and API Management data |
+| `MCPEditor` | read, write | Read and modify CPI and API Management data |
 | `MCPAdmin` | read, write, admin | Full administrative access |
 
 OAuth2 redirect URIs are pre-configured for Claude.ai, Cursor, Microsoft Teams, and local development.
