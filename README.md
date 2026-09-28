@@ -92,6 +92,10 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 Served from the SAP API Management API portal (`API_DESTINATION`, path `/apiportal/api/1.0/Management.svc`). Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
 
+Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer; the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
+
+Product updates (`APIProducts_update`) are a full-replacement `PUT`, so the body must carry the whole product including every `apiProxies` link to keep. This requires an odata-mcp-proxy build with per-operation update methods; older builds send `PATCH`, which API Management may reject for link changes.
+
 | Tool | Operations | Description |
 |------|-----------|-------------|
 | `APIProviders` | list, get, create, update | Named backend connections that API proxies target |

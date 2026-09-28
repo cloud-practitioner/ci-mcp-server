@@ -745,7 +745,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["name", "title", "description", "destType", "isOnPremise", "host", "port", "useSSL", "authType", "url", "pathPrefix", "region"],
           "navigationProperties": [
@@ -767,7 +767,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["name", "title", "description", "provider_name", "state", "status_code", "releaseStatus", "service_code", "version", "revisionID", "isPublished", "isVersioned", "hasChanges", "apiVersionGroup"],
           "navigationProperties": [
@@ -809,14 +809,14 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["name", "revisionID", "state"]
         },
 
         {
           "entitySet": "APIProducts",
-          "description": "SAP API Management API products - bundles of deployed API proxies published to developers, with quota (quotaCount, quotaInterval, quotaTimeUnit), scope, and isRestricted flag. A product links proxies through its many-to-many apiProxies navigation property: in the create or update body pass \"apiProxies\": [{\"__metadata\": {\"uri\": \"APIProxies('<proxy name>')\"}}]. Only deployed proxies can be attached (check APIProxyDeployments first). Updates replace the whole product (PUT to APIProducts('<product>')), so send the full entity including every apiProxies link you want to keep",
+          "description": "SAP API Management API products - bundles of deployed API proxies published to developers, with quota (quotaCount, quotaInterval, quotaTimeUnit), scope, and isRestricted flag. A product links proxies through its many-to-many apiProxies navigation property: in the create or update body pass \"apiProxies\": [{\"__metadata\": {\"uri\": \"APIProxies('<proxy name>')\"}}]. Only deployed proxies can be attached (check APIProxyDeployments first). Updates are a full-replacement PUT to APIProducts('<product>'), so send the full entity including every apiProxies link you want to keep. PUT needs an odata-mcp-proxy build with per-operation update methods; older builds send PATCH, which API Management may reject for link changes",
           "category": "api-management",
           "keys": [{ "name": "name", "type": "string" }],
           "operations": {
@@ -824,7 +824,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write", "method": "PUT" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["name", "title", "description", "isPublished", "isRestricted", "scope", "status_code", "version", "quotaCount", "quotaInterval", "quotaTimeUnit"],
           "navigationProperties": [
@@ -846,7 +846,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["id", "name", "FK_API_NAME", "base_path", "isDefault"],
           "navigationProperties": [
@@ -873,7 +873,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["id", "name", "FK_API_NAME", "provider_id", "url", "relativePath", "isDefault", "targetAPIProxyName"]
         },
@@ -888,7 +888,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["id", "name", "virtual_host", "virtual_port", "isDefault", "isSSL", "isClientAuthEnabled", "isForCustomDomain"]
         },
@@ -903,7 +903,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["name", "scope", "encrypted"],
           "navigationProperties": [
@@ -928,7 +928,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["map_name", "name"]
         },
@@ -947,7 +947,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["name", "scope", "scopeId", "isEncrypted"],
           "navigationProperties": [
@@ -974,7 +974,7 @@
             "get":    { "enabled": true,  "requiredScope": "read" },
             "create": { "enabled": true,  "requiredScope": "write" },
             "update": { "enabled": true,  "requiredScope": "write" },
-            "delete": { "enabled": false }
+            "delete": false
           },
           "filterableProperties": ["mapName", "name", "scope", "scopeId"]
         }
