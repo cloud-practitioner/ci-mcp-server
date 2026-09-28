@@ -22,9 +22,9 @@ AI Assistant (Claude, Cursor, etc.)
 
 Think of it like the [SAP Application Router](https://www.npmjs.com/package/@sap/approuter) -- a ready-made runtime you configure, not code you write.
 
-## Exposed CPI APIs
+## Exposed APIs
 
-The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData API, organized into the following categories:
+The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData API and the SAP API Management API, organized into the following categories:
 
 ### Integration Content
 
@@ -88,6 +88,26 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 | `AlternativePartners` | list, get, create, update, delete | Additional partner identifiers (DUNS, GLN) mapping to a primary partner |
 | `AuthorizedUsers` | list, get, create, update, delete | Users permitted to send messages on behalf of a specific partner |
 
+### API Management
+
+Served from the SAP API Management API portal (`API_DESTINATION`, path `/apiportal/api/1.0/Management.svc`). Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
+
+Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer; the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
+
+Product updates (`APIProducts_update`) are a full-replacement `PUT`, so the body must carry the whole product including every `apiProxies` link to keep. This requires an odata-mcp-proxy build with per-operation update methods; older builds send `PATCH`, which API Management may reject for link changes.
+
+| Tool | Operations | Description |
+|------|-----------|-------------|
+| `APIProviders` | list, get, create, update | Named backend connections that API proxies target |
+| `APIProxies` | list, get, create, update | API proxies with their proxy endpoints, target endpoints, and policies |
+| `APIProxyDeployments` | list, get, create, update | Proxy deployment records; deploying a proxy is a create here |
+| `APIProducts` | list, get, create, update | Bundles of deployed API proxies published to developers |
+| `APIProxyEndPoints` | list, get, create, update | Client-facing side of a proxy (base path, virtual hosts, route rules) |
+| `APITargetEndPoints` | list, get, create, update | Backend side of a proxy (URL or API provider) |
+| `VirtualHosts` | list, get, create, update | Hostnames and ports on which proxy endpoints are exposed |
+| `KeyMapEntries`, `KeyMapEntryValues` | list, get, create, update | Environment key value maps and their entries |
+| `GenericKeyMapEntries`, `GenericKeyMapEntryValues` | list, get, create, update | Scoped key value maps and their entries |
+
 All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`.
 
 ## Prerequisites
@@ -95,7 +115,8 @@ All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand
 - **Node.js** 18+ (20+ recommended)
 - **SAP BTP account** with a Cloud Foundry environment
 - **SAP Cloud Integration** tenant (part of SAP Integration Suite)
-- **BTP Destination** configured for the CPI OData API with OAuth2 authentication
+- **SAP API Management** (API portal) subscription, only for the API Management tools
+- **BTP Destinations** with OAuth2 authentication (see [Configure BTP destination](#2-configure-btp-destination))
 - **Cloud Foundry CLI** (`cf`) and **MBT Build Tool** (`mbt`) for deployment
 
 ## Project Structure
@@ -120,11 +141,12 @@ npm install
 
 ### 2. Configure BTP destination
 
-Create a BTP Destination pointing to the CPI OData API:
+Create the BTP Destinations the config refers to:
 
 | Destination | URL |
 |-------------|-----|
 | `CPI_DESTINATION` | `https://<tenant>.it-cpi0<xx>.cfapps.<region>.hana.ondemand.com` |
+| `API_DESTINATION` | API Management API portal URL (from the API portal service key), used by the analytics and API Management tools |
 
 The destination should use OAuth2 client credentials authentication with the CPI service key credentials.
 
@@ -156,8 +178,8 @@ The XSUAA configuration (`xs-security.json`) defines three role templates:
 
 | Role | Scopes | Description |
 |------|--------|-------------|
-| `MCPViewer` | read | Read-only access to CPI data |
-| `MCPEditor` | read, write | Read and modify CPI data |
+| `MCPViewer` | read | Read-only access to CPI and API Management data |
+| `MCPEditor` | read, write | Read and modify CPI and API Management data |
 | `MCPAdmin` | read, write, admin | Full administrative access |
 
 OAuth2 redirect URIs are pre-configured for Claude.ai, Cursor, Microsoft Teams, and local development.
