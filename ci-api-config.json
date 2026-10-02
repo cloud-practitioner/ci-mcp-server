@@ -782,7 +782,7 @@
 
         {
           "entitySet": "APIProducts",
-          "description": "SAP API Management API products - bundles of deployed API proxies published to developers, with quota (quotaCount, quotaInterval, quotaTimeUnit), scope, and isRestricted flag. A product links proxies through its many-to-many apiProxies navigation property: in the create or update body pass \"apiProxies\": [{\"__metadata\": {\"uri\": \"APIProxies('<proxy name>')\"}}]. Only deployed proxies can be attached (check APIProxyDeployments first). Updates are a full-replacement PUT to APIProducts('<product>'), so send the full entity including every apiProxies link you want to keep. PUT needs an odata-mcp-proxy build with per-operation update methods; older builds send PATCH, which API Management may reject for link changes",
+          "description": "SAP API Management API products - bundles of deployed API proxies published to developers, with quota (quotaCount, quotaInterval, quotaTimeUnit), scope, and isRestricted flag. A product links proxies through its many-to-many apiProxies navigation property: in the create or update body pass \"apiProxies\": [{\"__metadata\": {\"uri\": \"APIProxies('<proxy name>')\"}}]. Only deployed proxies can be attached (check APIProxyDeployments first). Updates are a full-replacement PUT to APIProducts('<product>'), so send the full entity including every apiProxies link you want to keep. PUT needs the cloud-practitioner/odata-mcp-proxy fork build (per-operation update methods); published builds send PATCH, which API Management may reject for link changes",
           "category": "api-management",
           "keys": [{ "name": "name", "type": "string" }],
           "operations": {
@@ -910,6 +910,221 @@
             "delete": false
           },
           "filterableProperties": ["mapName", "name", "scope", "scopeId"]
+        },
+
+        {
+          "entitySet": "APIResources",
+          "description": "SAP API Management API resources - the documented operations of an API proxy (resource_path, title, description, and which HTTP methods are enabled via isGetChecked, isPostChecked and the like), keyed by a generated id and linked to their proxy endpoint via FK_PROXYENDPOINT_ID. Usually created by deep insert with the proxy endpoint; filter by FK_PROXYENDPOINT_ID (an APIProxyEndPoints id) to list one proxy's resources, and $expand=documentations to read their documentation",
+          "category": "api-management",
+          "keys": [{ "name": "id", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": false
+          },
+          "filterableProperties": ["id", "name", "title", "resource_path", "proxyEndPointName", "FK_PROXYENDPOINT_ID"]
+        },
+
+        {
+          "entitySet": "Documentations",
+          "description": "SAP API Management API resource documentation - the per-locale documentation text (content, mime_type) of an API resource, keyed by id and locale and linked to the resource via FK_APIRESOURCE_ID. Filter by FK_APIRESOURCE_ID to read one resource's documentation",
+          "category": "api-management",
+          "keys": [
+            { "name": "id", "type": "string" },
+            { "name": "locale", "type": "string" }
+          ],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": false
+          },
+          "filterableProperties": ["id", "locale", "FK_APIRESOURCE_ID", "apiResourceName", "mime_type"]
+        },
+
+        {
+          "entitySet": "Policies",
+          "description": "SAP API Management proxy policies - the policy definitions attached to an API proxy (name, type, policy_content holding the policy XML), keyed by a generated id and linked to their proxy via FK_API_NAME. Filter by FK_API_NAME to list one proxy's policies. A policy only runs once a step in a proxy or target endpoint flow references it by name, and proxy changes take effect after the proxy is redeployed via APIProxyDeployments",
+          "category": "api-management",
+          "keys": [{ "name": "id", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": false
+          },
+          "filterableProperties": ["id", "name", "type", "FK_API_NAME"]
+        },
+
+        {
+          "entitySet": "GetAllRevisions",
+          "description": "SAP API Management API proxy revisions - the GetAllRevisions function import, which returns every saved revision of one API proxy (revisionID, revisionName, revisionDescription, change history). Pass the proxy name as a query parameter in path, e.g. \"?apiProxyName='MyAPI'\"; there is no key lookup",
+          "category": "api-management",
+          "keys": [],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    false,
+            "create": false,
+            "update": false,
+            "delete": false
+          },
+          "filterableProperties": ["revisionID", "revisionName"]
+        },
+
+        {
+          "entitySet": "APIProductAdditionalProperties",
+          "description": "SAP API Management product custom attributes - name/value pairs attached to an API product (at most 18 per product; name up to 255 and value up to 1024 characters) that the Verify API Key, Access Token and Access Entity policies can read at runtime, keyed by entityId (the product name) and name. Filter by entityId to list one product's attributes; they can also be deep-inserted as additionalProperties when creating a product",
+          "category": "api-management",
+          "keys": [
+            { "name": "entityId", "type": "string" },
+            { "name": "name", "type": "string" }
+          ],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write" },
+            "delete": false
+          },
+          "filterableProperties": ["entityId", "name", "value"]
+        },
+
+        {
+          "entitySet": "RatePlans",
+          "description": "SAP API Management rate plans - monetization plans (name, currency, frequency, type Basic or Tier, isActive, isPublished, validFrom/validTo, and rate as a JSON string such as {\"baseRate\":20,\"tiers\":[{\"fromCount\":0,\"toCount\":0,\"ratePerCall\":1}]}) that are attached to API products to bill application developers, keyed by a generated id. Filter with isActive eq true for active plans. Updates are a full-replacement PUT to RatePlans('<id>'), so send the whole plan. PUT needs the cloud-practitioner/odata-mcp-proxy fork build (per-operation update methods); published builds send PATCH, which API Management may reject",
+          "category": "api-management",
+          "keys": [{ "name": "id", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write", "method": "PUT" },
+            "delete": false
+          },
+          "filterableProperties": ["id", "name", "type", "currency", "frequency", "isActive", "isPublished", "isSeasonal"]
+        },
+
+        {
+          "entitySet": "Applications",
+          "description": "SAP API Management applications - developer applications subscribed to API products (title, status_code, callbackurl, the developer via FK_DEVELOPER_ID, and the application key and secret that callers present to the Verify API Key and OAuth policies), keyed by a generated id. Read-only here. The response includes app_key and app_secret, so use $select to leave them out unless the user asks for the credentials; $expand=apiProducts lists the subscribed products and $expand=developer the owner",
+          "category": "api-management",
+          "keys": [{ "name": "id", "type": "string" }],
+          "operations": {
+            "list":   false,
+            "get":    false,
+            "create": false,
+            "update": false,
+            "delete": false
+          },
+          "filterableProperties": ["id", "title", "status_code", "FK_DEVELOPER_ID", "callbackurl", "subscribedRatePlan"]
+        },
+
+        {
+          "entitySet": "Developers",
+          "description": "SAP API Management developers - the application developers registered for the API portal (firstName, lastName, emailId, country), keyed by a generated id. Read-only here; $expand=applications lists a developer's applications",
+          "category": "api-management",
+          "keys": [{ "name": "id", "type": "string" }],
+          "operations": {
+            "list":   false,
+            "get":    false,
+            "create": false,
+            "update": false,
+            "delete": false
+          },
+          "filterableProperties": ["id", "firstName", "lastName", "emailId", "country"]
+        },
+
+        {
+          "entitySet": "CertificateStores",
+          "description": "SAP API Management certificate stores - named keystores and truststores (storeType KEYSTORE or TRUSTSTORE) that virtual hosts and target endpoints use for TLS, keyed by name. $expand=certificates lists a store's certificates. Create a store with its first certificate in one call by deep-inserting certificates (name, content as base64, and password for a keystore key pair)",
+          "category": "api-management",
+          "keys": [{ "name": "name", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": false,
+            "update": false,
+            "delete": false
+          },
+          "filterableProperties": ["name", "storeType"]
+        },
+
+        {
+          "entitySet": "Certificates",
+          "description": "SAP API Management certificates - the certificates inside a keystore or truststore (certName, format, validity via validFrom, expiryDate and isValid, issuer and subject details), keyed by name and storeName. Read-only here; filter by storeName to list one store's certificates, or by expiryDate to find certificates that are about to expire",
+          "category": "api-management",
+          "keys": [
+            { "name": "name", "type": "string" },
+            { "name": "storeName", "type": "string" }
+          ],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": false,
+            "update": false,
+            "delete": false
+          },
+          "filterableProperties": ["name", "storeName", "storeType", "certName", "format", "isValid", "expiryDate", "validFrom"]
+        },
+
+        {
+          "entitySet": "CertificateStoreReferences",
+          "description": "SAP API Management certificate store references - named aliases (name, certificateStoreName, storeType) that point at a keystore or truststore, so virtual hosts and TLS settings can use the reference and a certificate rotation only repoints the reference, keyed by name. Create with {\"name\": \"<reference>\", \"certificateStoreName\": \"<store>\"}; updates are a PUT to CertificateStoreReferences('<reference>') with {\"certificateStoreName\": \"<new store>\"}. PUT needs the cloud-practitioner/odata-mcp-proxy fork build (per-operation update methods); published builds send PATCH, which API Management may reject",
+          "category": "api-management",
+          "keys": [{ "name": "name", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write", "method": "PUT" },
+            "delete": false
+          },
+          "filterableProperties": ["name", "certificateStoreName", "storeType"]
+        },
+
+        {
+          "entitySet": "CacheResources",
+          "description": "SAP API Management cache resources - named caches (at most 10) that the Populate, Lookup, Invalidate and Response Cache policies use instead of the shared cache when they name the cache in their CacheResource element, with in-memory and disk sizing, compression and expiry settings, keyed by name. Updates are a full-replacement PUT to CacheResources('<name>'), so send the whole cache definition. PUT needs the cloud-practitioner/odata-mcp-proxy fork build (per-operation update methods); published builds send PATCH, which API Management may reject",
+          "category": "api-management",
+          "keys": [{ "name": "name", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": { "enabled": true,  "requiredScope": "write", "method": "PUT" },
+            "delete": false
+          },
+          "filterableProperties": ["name", "persistent_cache", "over_flow_to_disk", "compression_enabled"]
+        }
+
+      ]
+    },
+
+    {
+      "name": "api-management-access-control",
+      "destination": "API_DESTINATION",
+      "pathPrefix": "/apiportal/api/1.0/AccessControl.svc",
+      "csrfProtected": true,
+      "entitySets": [
+
+        {
+          "entitySet": "ProductAccessRules",
+          "urlPath": "Rules",
+          "description": "SAP API Management product access rules - access control rules that let only users with a given role discover or subscribe to a restricted API product (isRestricted true) in the Developer Hub. Each rule has ruleId (generated), entityId (the product name), actor ({\"name\": \"<role name>\", \"type\": \"Role\"}) and action (Discovery or Subscription), and only one rule may exist per product and action. Create with {\"ruleId\": \"0000\", \"entityId\": \"<product>\", \"actor\": {\"name\": \"<role>\", \"type\": \"Role\"}, \"action\": \"Discovery\"}; filter by entityId to list one product's rules",
+          "category": "api-management",
+          "keys": [{ "name": "ruleId", "type": "string" }],
+          "operations": {
+            "list":   { "enabled": true,  "requiredScope": "read" },
+            "get":    { "enabled": true,  "requiredScope": "read" },
+            "create": { "enabled": true,  "requiredScope": "write" },
+            "update": false,
+            "delete": false
+          },
+          "filterableProperties": ["ruleId", "entityId", "action"]
         }
 
       ]

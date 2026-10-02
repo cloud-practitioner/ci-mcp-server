@@ -90,11 +90,11 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 ### API Management
 
-Served from the SAP API Management API portal (`API_DESTINATION`, path `/apiportal/api/1.0/Management.svc`). Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
+Served from the SAP API Management API portal (`API_DESTINATION`) under `/apiportal/api/1.0/`: `Management.svc` for most tools and `AccessControl.svc` for `ProductAccessRules`. Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
 
-Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer; the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
+Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer (or the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork build); the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
 
-Product updates (`APIProducts_update`) are a full-replacement `PUT`, so the body must carry the whole product including every `apiProxies` link to keep. This requires an odata-mcp-proxy build with per-operation update methods; older builds send `PATCH`, which API Management may reject for link changes.
+The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources` are a full-replacement `PUT`, so the body must carry the whole entity (for a product, every `apiProxies` link to keep). `PUT` updates need an odata-mcp-proxy build with per-operation update methods, which only the fork build has; published builds send `PATCH`, which API Management may reject.
 
 | Tool | Operations | Description |
 |------|-----------|-------------|
@@ -107,6 +107,37 @@ Product updates (`APIProducts_update`) are a full-replacement `PUT`, so the body
 | `VirtualHosts` | list, get, create, update | Hostnames and ports on which proxy endpoints are exposed |
 | `KeyMapEntries`, `KeyMapEntryValues` | list, get, create, update | Environment key value maps and their entries |
 | `GenericKeyMapEntries`, `GenericKeyMapEntryValues` | list, get, create, update | Scoped key value maps and their entries |
+| `APIResources` | list, get, create, update | Documented operations (resource paths and enabled methods) of a proxy endpoint |
+| `Documentations` | list, get, create, update | Per-locale documentation of an API resource |
+| `Policies` | list, get, create, update | Policy definitions (policy XML) attached to an API proxy |
+| `GetAllRevisions` | list | Saved revisions of one API proxy (`?apiProxyName='<name>'`) |
+| `APIProductAdditionalProperties` | list, get, create, update | Custom attributes of an API product, readable by policies at runtime |
+| `RatePlans` | list, get, create, update (PUT) | Monetization rate plans attached to products |
+| `Applications` | list, get (disabled by default) | Developer applications subscribed to products (the response includes the app key and secret) |
+| `Developers` | list, get (disabled by default) | Application developers registered for the API portal |
+| `CertificateStores` | list, get, create (create disabled by default) | Keystores and truststores |
+| `Certificates` | list, get | Certificates inside a keystore or truststore, with expiry details |
+| `CertificateStoreReferences` | list, get, create, update (PUT) | Named aliases that point at a keystore or truststore |
+| `CacheResources` | list, get, create, update (PUT) | Named caches used by the caching policies |
+| `ProductAccessRules` | list, get, create | Role-based Discovery and Subscription permissions for restricted products (`AccessControl.svc/Rules`) |
+
+Some operations ship disabled (plain `false`, which every odata-mcp-proxy version honours) as hardening by default:
+
+- `Applications` `list` and `get`: they return every application's `app_key` and `app_secret` (gateway API credentials).
+- `Developers` `list` and `get`: they return developer personal data (name, email, country).
+- `CertificateStores` `create`: the create body carries keystore key pairs and their passwords. `Certificates` is read-only.
+
+To enable one, replace its `false` in `ci-api-config.json` with `{ "enabled": true, "requiredScope": "admin" }`, for example `"list": { "enabled": true, "requiredScope": "admin" }` under `Applications`. The `admin` scope only restricts callers on odata-mcp-proxy 1.1.2 or newer (or the fork build).
+
+Disabling these operations and requiring `admin` to re-enable them is defense in depth, not an access-control boundary. Disabling a tool removes that tool but does not stop a caller from reaching the same entity set: every tool takes a free-form `path` appended to its URL, and odata-mcp-proxy collapses `..` segments, so any enabled `Management.svc` tool can be pointed at `Applications`, `Developers` or `CertificateStores` (for example `APIProxies_list` with `path: "/../Applications"`). Blocking that needs path validation in odata-mcp-proxy (rejecting `..` and `%2e%2e` segments), which is in progress in the cloud-practitioner/odata-mcp-proxy fork, or a more restricted role for the `API_DESTINATION` technical user. Both are outside this repository.
+
+Some documented API portal services are not exposed because odata-mcp-proxy cannot drive them:
+
+- Exporting an API proxy (`Transport.svc/APIProxies?name=<proxy>`) returns a binary zip and needs binary-safe response handling, available only on the fork build; published builds decode the zip as text and corrupt it. Re-add it once this server runs on the fork build.
+- Importing a proxy zip (`Transport.svc`) or a content archive (`ContentArchive.svc`) needs a `multipart/form-data` upload.
+- Exporting a content archive needs a `GET` with a request body.
+
+The CI tools above disable some operations with the object form `{ "enabled": false }`, which only odata-mcp-proxy 1.1.2 or newer (or the fork build) honours; the locked 1.0.0 still registers them. Those entries predate the API Management tools and should be migrated to plain `false` separately.
 
 All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`.
 
