@@ -90,11 +90,11 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 ### API Management
 
-Served from the SAP API Management API portal (`API_DESTINATION`) under `/apiportal/api/1.0/`: `Management.svc` for most tools, `AccessControl.svc` for `ProductAccessRules`, and `Transport.svc` for `APIProxyExports`. Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
+Served from the SAP API Management API portal (`API_DESTINATION`) under `/apiportal/api/1.0/`: `Management.svc` for most tools and `AccessControl.svc` for `ProductAccessRules`. Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
 
-Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork build; the published odata-mcp-proxy 1.x (including the locked 1.0.0) does not enforce scopes, so any authenticated user can call every registered tool.
+Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer (or the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork build); the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
 
-The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources` are a full-replacement `PUT`, so the body must carry the whole entity (for a product, every `apiProxies` link to keep). `PUT` updates need the fork build too; the published odata-mcp-proxy 1.x sends `PATCH`, which API Management may reject.
+The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources` are a full-replacement `PUT`, so the body must carry the whole entity (for a product, every `apiProxies` link to keep). `PUT` updates need an odata-mcp-proxy build with per-operation update methods, which only the fork build has; published builds send `PATCH`, which API Management may reject.
 
 | Tool | Operations | Description |
 |------|-----------|-------------|
@@ -120,19 +120,22 @@ The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `Cac
 | `CertificateStoreReferences` | list, get, create, update (PUT) | Named aliases that point at a keystore or truststore |
 | `CacheResources` | list, get, create, update (PUT) | Named caches used by the caching policies |
 | `ProductAccessRules` | list, get, create | Role-based Discovery and Subscription permissions for restricted products (`AccessControl.svc/Rules`) |
-| `APIProxyExports` | list | Export one API proxy as a base64-encoded zip bundle (`?name=<proxy>`) |
 
-`APIProxyExports` returns a binary zip. Only the fork build keeps binary responses intact (it returns them base64-encoded); the published odata-mcp-proxy 1.x, including the locked 1.0.0, decodes the zip as text and corrupts it.
+Some operations ship disabled (plain `false`, which every odata-mcp-proxy version honours):
 
-Some tools ship disabled because the `read` and `write` scopes are too broad for them, and the published odata-mcp-proxy 1.x does not enforce scopes at all:
+- `Applications` `list` and `get`: they return every application's `app_key` and `app_secret` (gateway API credentials), which would be readable with only the `read` scope.
+- `Developers` `list` and `get`: they return developer personal data (name, email, country), which would be readable with only the `read` scope.
+- `CertificateStores` `create`: the create body carries keystore key pairs and their passwords. `Certificates` is read-only.
 
-- `Applications` `list` and `get`: every application's `app_key` and `app_secret` (gateway API credentials) would be readable with only the `read` scope.
-- `Developers` `list` and `get`: developer personal data (name, email, country) would be readable with only the `read` scope.
-- `CertificateStores` `create`: the create body carries keystore key pairs and their passwords, which would pass through the assistant. `Certificates` is read-only.
+To enable one, replace its `false` in `ci-api-config.json` with `{ "enabled": true, "requiredScope": "admin" }`, for example `"list": { "enabled": true, "requiredScope": "admin" }` under `Applications`. The `admin` scope only restricts callers on odata-mcp-proxy 1.1.2 or newer (or the fork build).
 
-To enable one, set `"enabled": true` on that operation of the entity set in `ci-api-config.json` (for example `"list": { "enabled": true, "requiredScope": "read" }` under `Applications`); the `requiredScope` is already in place.
+Some documented API portal services are not exposed because odata-mcp-proxy cannot drive them:
 
-Some documented API portal services are not exposed because odata-mcp-proxy cannot drive them: importing a proxy zip (`Transport.svc`) or a content archive (`ContentArchive.svc`) needs a `multipart/form-data` upload, and a content archive export needs a `GET` with a request body.
+- Exporting an API proxy (`Transport.svc/APIProxies?name=<proxy>`) returns a binary zip and needs binary-safe response handling, available only on the fork build; published builds decode the zip as text and corrupt it. Re-add it once this server runs on the fork build.
+- Importing a proxy zip (`Transport.svc`) or a content archive (`ContentArchive.svc`) needs a `multipart/form-data` upload.
+- Exporting a content archive needs a `GET` with a request body.
+
+The CI tools above disable some operations with the object form `{ "enabled": false }`, which only odata-mcp-proxy 1.1.2 or newer (or the fork build) honours; the locked 1.0.0 still registers them. Those entries predate the API Management tools and should be migrated to plain `false` separately.
 
 All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`.
 
