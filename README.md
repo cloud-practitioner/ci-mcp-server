@@ -92,9 +92,9 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 Served from the SAP API Management API portal (`API_DESTINATION`) under `/apiportal/api/1.0/`: `Management.svc` for most tools, `AccessControl.svc` for `ProductAccessRules`, and `Transport.svc` for `APIProxyExports`. Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
 
-Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer; the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
+Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork build; the published odata-mcp-proxy 1.x (including the locked 1.0.0) does not enforce scopes, so any authenticated user can call every registered tool.
 
-Product updates (`APIProducts_update`) are a full-replacement `PUT`, so the body must carry the whole product including every `apiProxies` link to keep. This requires an odata-mcp-proxy build with per-operation update methods; older builds send `PATCH`, which API Management may reject for link changes.
+The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources` are a full-replacement `PUT`, so the body must carry the whole entity (for a product, every `apiProxies` link to keep). `PUT` updates need the fork build too; the published odata-mcp-proxy 1.x sends `PATCH`, which API Management may reject.
 
 | Tool | Operations | Description |
 |------|-----------|-------------|
@@ -113,16 +113,24 @@ Product updates (`APIProducts_update`) are a full-replacement `PUT`, so the body
 | `GetAllRevisions` | list | Saved revisions of one API proxy (`?apiProxyName='<name>'`) |
 | `APIProductAdditionalProperties` | list, get, create, update | Custom attributes of an API product, readable by policies at runtime |
 | `RatePlans` | list, get, create, update (PUT) | Monetization rate plans attached to products |
-| `Applications` | list, get | Developer applications subscribed to products (the response includes the app key and secret) |
-| `Developers` | list, get | Application developers registered for the API portal |
-| `CertificateStores` | list, get, create | Keystores and truststores |
+| `Applications` | list, get (disabled by default) | Developer applications subscribed to products (the response includes the app key and secret) |
+| `Developers` | list, get (disabled by default) | Application developers registered for the API portal |
+| `CertificateStores` | list, get, create (create disabled by default) | Keystores and truststores |
 | `Certificates` | list, get | Certificates inside a keystore or truststore, with expiry details |
 | `CertificateStoreReferences` | list, get, create, update (PUT) | Named aliases that point at a keystore or truststore |
 | `CacheResources` | list, get, create, update (PUT) | Named caches used by the caching policies |
 | `ProductAccessRules` | list, get, create | Role-based Discovery and Subscription permissions for restricted products (`AccessControl.svc/Rules`) |
 | `APIProxyExports` | list | Export one API proxy as a base64-encoded zip bundle (`?name=<proxy>`) |
 
-`APIProxyExports` returns a binary zip, which needs an odata-mcp-proxy build that keeps binary responses intact; the npm-published 1.0.0 corrupts them.
+`APIProxyExports` returns a binary zip. Only the fork build keeps binary responses intact (it returns them base64-encoded); the published odata-mcp-proxy 1.x, including the locked 1.0.0, decodes the zip as text and corrupts it.
+
+Some tools ship disabled because the `read` and `write` scopes are too broad for them, and the published odata-mcp-proxy 1.x does not enforce scopes at all:
+
+- `Applications` `list` and `get`: every application's `app_key` and `app_secret` (gateway API credentials) would be readable with only the `read` scope.
+- `Developers` `list` and `get`: developer personal data (name, email, country) would be readable with only the `read` scope.
+- `CertificateStores` `create`: the create body carries keystore key pairs and their passwords, which would pass through the assistant. `Certificates` is read-only.
+
+To enable one, set `"enabled": true` on that operation of the entity set in `ci-api-config.json` (for example `"list": { "enabled": true, "requiredScope": "read" }` under `Applications`); the `requiredScope` is already in place.
 
 Some documented API portal services are not exposed because odata-mcp-proxy cannot drive them: importing a proxy zip (`Transport.svc`) or a content archive (`ContentArchive.svc`) needs a `multipart/form-data` upload, and a content archive export needs a `GET` with a request body.
 

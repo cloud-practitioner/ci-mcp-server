@@ -782,7 +782,7 @@
 
         {
           "entitySet": "APIProducts",
-          "description": "SAP API Management API products - bundles of deployed API proxies published to developers, with quota (quotaCount, quotaInterval, quotaTimeUnit), scope, and isRestricted flag. A product links proxies through its many-to-many apiProxies navigation property: in the create or update body pass \"apiProxies\": [{\"__metadata\": {\"uri\": \"APIProxies('<proxy name>')\"}}]. Only deployed proxies can be attached (check APIProxyDeployments first). Updates are a full-replacement PUT to APIProducts('<product>'), so send the full entity including every apiProxies link you want to keep. PUT needs an odata-mcp-proxy build with per-operation update methods; older builds send PATCH, which API Management may reject for link changes",
+          "description": "SAP API Management API products - bundles of deployed API proxies published to developers, with quota (quotaCount, quotaInterval, quotaTimeUnit), scope, and isRestricted flag. A product links proxies through its many-to-many apiProxies navigation property: in the create or update body pass \"apiProxies\": [{\"__metadata\": {\"uri\": \"APIProxies('<proxy name>')\"}}]. Only deployed proxies can be attached (check APIProxyDeployments first). Updates are a full-replacement PUT to APIProducts('<product>'), so send the full entity including every apiProxies link you want to keep. PUT needs the cloud-practitioner/odata-mcp-proxy fork build; the published odata-mcp-proxy 1.x sends PATCH, which API Management may reject for link changes",
           "category": "api-management",
           "keys": [{ "name": "name", "type": "string" }],
           "operations": {
@@ -995,7 +995,7 @@
 
         {
           "entitySet": "RatePlans",
-          "description": "SAP API Management rate plans - monetization plans (name, currency, frequency, type Basic or Tier, isActive, isPublished, validFrom/validTo, and rate as a JSON string such as {\"baseRate\":20,\"tiers\":[{\"fromCount\":0,\"toCount\":0,\"ratePerCall\":1}]}) that are attached to API products to bill application developers, keyed by a generated id. Filter with isActive eq true for active plans. Updates are a full-replacement PUT to RatePlans('<id>'), so send the whole plan",
+          "description": "SAP API Management rate plans - monetization plans (name, currency, frequency, type Basic or Tier, isActive, isPublished, validFrom/validTo, and rate as a JSON string such as {\"baseRate\":20,\"tiers\":[{\"fromCount\":0,\"toCount\":0,\"ratePerCall\":1}]}) that are attached to API products to bill application developers, keyed by a generated id. Filter with isActive eq true for active plans. Updates are a full-replacement PUT to RatePlans('<id>'), so send the whole plan. PUT needs the cloud-practitioner/odata-mcp-proxy fork build; the published odata-mcp-proxy 1.x sends PATCH",
           "category": "api-management",
           "keys": [{ "name": "id", "type": "string" }],
           "operations": {
@@ -1014,8 +1014,8 @@
           "category": "api-management",
           "keys": [{ "name": "id", "type": "string" }],
           "operations": {
-            "list":   { "enabled": true,  "requiredScope": "read" },
-            "get":    { "enabled": true,  "requiredScope": "read" },
+            "list":   { "enabled": false, "requiredScope": "read" },
+            "get":    { "enabled": false, "requiredScope": "read" },
             "create": false,
             "update": false,
             "delete": false
@@ -1029,8 +1029,8 @@
           "category": "api-management",
           "keys": [{ "name": "id", "type": "string" }],
           "operations": {
-            "list":   { "enabled": true,  "requiredScope": "read" },
-            "get":    { "enabled": true,  "requiredScope": "read" },
+            "list":   { "enabled": false, "requiredScope": "read" },
+            "get":    { "enabled": false, "requiredScope": "read" },
             "create": false,
             "update": false,
             "delete": false
@@ -1046,7 +1046,7 @@
           "operations": {
             "list":   { "enabled": true,  "requiredScope": "read" },
             "get":    { "enabled": true,  "requiredScope": "read" },
-            "create": { "enabled": true,  "requiredScope": "write" },
+            "create": { "enabled": false, "requiredScope": "write" },
             "update": false,
             "delete": false
           },
@@ -1073,7 +1073,7 @@
 
         {
           "entitySet": "CertificateStoreReferences",
-          "description": "SAP API Management certificate store references - named aliases (name, certificateStoreName, storeType) that point at a keystore or truststore, so virtual hosts and TLS settings can use the reference and a certificate rotation only repoints the reference, keyed by name. Create with {\"name\": \"<reference>\", \"certificateStoreName\": \"<store>\"}; updates are a PUT to CertificateStoreReferences('<reference>') with {\"certificateStoreName\": \"<new store>\"}",
+          "description": "SAP API Management certificate store references - named aliases (name, certificateStoreName, storeType) that point at a keystore or truststore, so virtual hosts and TLS settings can use the reference and a certificate rotation only repoints the reference, keyed by name. Create with {\"name\": \"<reference>\", \"certificateStoreName\": \"<store>\"}; updates are a PUT to CertificateStoreReferences('<reference>') with {\"certificateStoreName\": \"<new store>\"}. PUT needs the cloud-practitioner/odata-mcp-proxy fork build; the published odata-mcp-proxy 1.x sends PATCH",
           "category": "api-management",
           "keys": [{ "name": "name", "type": "string" }],
           "operations": {
@@ -1088,7 +1088,7 @@
 
         {
           "entitySet": "CacheResources",
-          "description": "SAP API Management cache resources - named caches (at most 10) that the Populate, Lookup, Invalidate and Response Cache policies use instead of the shared cache when they name the cache in their CacheResource element, with in-memory and disk sizing, compression and expiry settings, keyed by name. Updates are a full-replacement PUT to CacheResources('<name>'), so send the whole cache definition",
+          "description": "SAP API Management cache resources - named caches (at most 10) that the Populate, Lookup, Invalidate and Response Cache policies use instead of the shared cache when they name the cache in their CacheResource element, with in-memory and disk sizing, compression and expiry settings, keyed by name. Updates are a full-replacement PUT to CacheResources('<name>'), so send the whole cache definition. PUT needs the cloud-practitioner/odata-mcp-proxy fork build; the published odata-mcp-proxy 1.x sends PATCH",
           "category": "api-management",
           "keys": [{ "name": "name", "type": "string" }],
           "operations": {
@@ -1139,7 +1139,7 @@
         {
           "entitySet": "APIProxyExports",
           "urlPath": "APIProxies",
-          "description": "SAP API Management API proxy export - downloads one API proxy with its endpoints, resources and policies as a zip bundle (returned base64-encoded) for backup or for moving it to another API portal. Pass the proxy name as a query parameter in path, e.g. \"?name=MyAPI\". Export only: importing the zip back needs a multipart upload, which this server does not support",
+          "description": "SAP API Management API proxy export - downloads one API proxy with its endpoints, resources and policies as a zip bundle (returned base64-encoded by the cloud-practitioner/odata-mcp-proxy fork build; the published odata-mcp-proxy 1.x corrupts the zip) for backup or for moving it to another API portal. Pass the proxy name as a query parameter in path, e.g. \"?name=MyAPI\". Export only: importing the zip back needs a multipart upload, which this server does not support",
           "category": "api-management",
           "keys": [],
           "operations": {
