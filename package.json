@@ -12,6 +12,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "odata-mcp-proxy": "^1.0.0"
+    "odata-mcp-proxy": "git+https://github.com/cloud-practitioner/odata-mcp-proxy.git#197d56c9dfa66ba32433a4d912111f8d7d89f000"
   }
 }

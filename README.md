@@ -1,12 +1,12 @@
 # CI MCP Server
 
-An MCP (Model Context Protocol) server for SAP Cloud Integration (CPI), powered by [odata-mcp-proxy](https://www.npmjs.com/package/odata-mcp-proxy). It exposes CPI OData APIs as MCP tools, allowing AI assistants like Claude to manage your integration landscape through natural language.
+An MCP (Model Context Protocol) server for SAP Cloud Integration (CPI), powered by [odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy). It exposes CPI OData APIs as MCP tools, allowing AI assistants like Claude to manage your integration landscape through natural language.
 
 The entire server is defined through a single JSON config file -- no custom code required.
 
 ## How It Works
 
-This project uses the `odata-mcp-proxy` npm package, which maps OData/REST services to MCP tools based on a configuration file. You provide a config describing your APIs and entity sets, and the proxy generates the corresponding MCP tools automatically.
+This project uses the `odata-mcp-proxy` package, pinned to the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork over a `git+https` dependency, which maps OData/REST services to MCP tools based on a configuration file. You provide a config describing your APIs and entity sets, and the proxy generates the corresponding MCP tools automatically.
 
 ```
 AI Assistant (Claude, Cursor, etc.)
@@ -92,9 +92,9 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 Served from the SAP API Management API portal (`API_DESTINATION`) under `/apiportal/api/1.0/`: `Management.svc` for most tools and `AccessControl.svc` for `ProductAccessRules`. Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
 
-Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer (or the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork build); the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
+Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement is provided by the pinned cloud-practitioner/odata-mcp-proxy fork; the previously published 1.0.0 does not enforce scopes, so any authenticated user could call every registered tool.
 
-The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources` are a full-replacement `PUT`, so the body must carry the whole entity (for a product, every `apiProxies` link to keep). `PUT` updates need an odata-mcp-proxy build with per-operation update methods, which only the fork build has; published builds send `PATCH`, which API Management may reject.
+The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources` are a full-replacement `PUT`, so the body must carry the whole entity (for a product, every `apiProxies` link to keep). This relies on the per-operation update methods provided by the pinned cloud-practitioner/odata-mcp-proxy fork; the previously published 1.0.0 sends `PATCH`, which API Management may reject.
 
 | Tool | Operations | Description |
 |------|-----------|-------------|
