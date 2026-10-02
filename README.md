@@ -143,7 +143,7 @@ All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand
 
 ## Prerequisites
 
-- **Node.js**: consult the `engines.node` entries in [package-lock.json](package-lock.json). The current dependency tree has conflicting engine requirements, so no Node.js version satisfies all declared ranges until those upstream requirements are reconciled.
+- **Node.js** 20.x (declared in `engines.node` in [package.json](package.json)). The `opossum` override pins 8.5.0 to keep the dependency tree compatible with Node 20 and the Cloud Foundry buildpack.
 - **Git** and outbound access to GitHub for dependency installation, including the MTA npm builder
 - **SAP BTP account** with a Cloud Foundry environment
 - **SAP Cloud Integration** tenant (part of SAP Integration Suite)
