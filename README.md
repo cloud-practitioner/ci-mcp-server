@@ -90,7 +90,7 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 ### API Management
 
-Served from the SAP API Management API portal (`API_DESTINATION`, path `/apiportal/api/1.0/Management.svc`). Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
+Served from the SAP API Management API portal (`API_DESTINATION`) under `/apiportal/api/1.0/`: `Management.svc` for most tools, `AccessControl.svc` for `ProductAccessRules`, and `Transport.svc` for `APIProxyExports`. Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
 
 Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer; the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
 
@@ -107,6 +107,24 @@ Product updates (`APIProducts_update`) are a full-replacement `PUT`, so the body
 | `VirtualHosts` | list, get, create, update | Hostnames and ports on which proxy endpoints are exposed |
 | `KeyMapEntries`, `KeyMapEntryValues` | list, get, create, update | Environment key value maps and their entries |
 | `GenericKeyMapEntries`, `GenericKeyMapEntryValues` | list, get, create, update | Scoped key value maps and their entries |
+| `APIResources` | list, get, create, update | Documented operations (resource paths and enabled methods) of a proxy endpoint |
+| `Documentations` | list, get, create, update | Per-locale documentation of an API resource |
+| `Policies` | list, get, create, update | Policy definitions (policy XML) attached to an API proxy |
+| `GetAllRevisions` | list | Saved revisions of one API proxy (`?apiProxyName='<name>'`) |
+| `APIProductAdditionalProperties` | list, get, create, update | Custom attributes of an API product, readable by policies at runtime |
+| `RatePlans` | list, get, create, update (PUT) | Monetization rate plans attached to products |
+| `Applications` | list, get | Developer applications subscribed to products (the response includes the app key and secret) |
+| `Developers` | list, get | Application developers registered for the API portal |
+| `CertificateStores` | list, get, create | Keystores and truststores |
+| `Certificates` | list, get | Certificates inside a keystore or truststore, with expiry details |
+| `CertificateStoreReferences` | list, get, create, update (PUT) | Named aliases that point at a keystore or truststore |
+| `CacheResources` | list, get, create, update (PUT) | Named caches used by the caching policies |
+| `ProductAccessRules` | list, get, create | Role-based Discovery and Subscription permissions for restricted products (`AccessControl.svc/Rules`) |
+| `APIProxyExports` | list | Export one API proxy as a base64-encoded zip bundle (`?name=<proxy>`) |
+
+`APIProxyExports` returns a binary zip, which needs an odata-mcp-proxy build that keeps binary responses intact; the npm-published 1.0.0 corrupts them.
+
+Some documented API portal services are not exposed because odata-mcp-proxy cannot drive them: importing a proxy zip (`Transport.svc`) or a content archive (`ContentArchive.svc`) needs a `multipart/form-data` upload, and a content archive export needs a `GET` with a request body.
 
 All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`.
 
