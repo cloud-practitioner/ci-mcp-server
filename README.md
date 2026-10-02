@@ -121,13 +121,15 @@ The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `Cac
 | `CacheResources` | list, get, create, update (PUT) | Named caches used by the caching policies |
 | `ProductAccessRules` | list, get, create | Role-based Discovery and Subscription permissions for restricted products (`AccessControl.svc/Rules`) |
 
-Some operations ship disabled (plain `false`, which every odata-mcp-proxy version honours):
+Some operations ship disabled (plain `false`, which every odata-mcp-proxy version honours) as hardening by default:
 
-- `Applications` `list` and `get`: they return every application's `app_key` and `app_secret` (gateway API credentials), which would be readable with only the `read` scope.
-- `Developers` `list` and `get`: they return developer personal data (name, email, country), which would be readable with only the `read` scope.
+- `Applications` `list` and `get`: they return every application's `app_key` and `app_secret` (gateway API credentials).
+- `Developers` `list` and `get`: they return developer personal data (name, email, country).
 - `CertificateStores` `create`: the create body carries keystore key pairs and their passwords. `Certificates` is read-only.
 
 To enable one, replace its `false` in `ci-api-config.json` with `{ "enabled": true, "requiredScope": "admin" }`, for example `"list": { "enabled": true, "requiredScope": "admin" }` under `Applications`. The `admin` scope only restricts callers on odata-mcp-proxy 1.1.2 or newer (or the fork build).
+
+Disabling these operations and requiring `admin` to re-enable them is defense in depth, not an access-control boundary. Disabling a tool removes that tool but does not stop a caller from reaching the same entity set: every tool takes a free-form `path` appended to its URL, and odata-mcp-proxy collapses `..` segments, so any enabled `Management.svc` tool can be pointed at `Applications`, `Developers` or `CertificateStores` (for example `APIProxies_list` with `path: "/../Applications"`). Blocking that needs path validation in odata-mcp-proxy (rejecting `..` and `%2e%2e` segments), which is in progress in the cloud-practitioner/odata-mcp-proxy fork, or a more restricted role for the `API_DESTINATION` technical user. Both are outside this repository.
 
 Some documented API portal services are not exposed because odata-mcp-proxy cannot drive them:
 
