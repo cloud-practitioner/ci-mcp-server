@@ -1,12 +1,12 @@
 # CI MCP Server
 
-An MCP (Model Context Protocol) server for SAP Cloud Integration (CPI), powered by [odata-mcp-proxy](https://www.npmjs.com/package/odata-mcp-proxy). It exposes CPI OData APIs as MCP tools, allowing AI assistants like Claude to manage your integration landscape through natural language.
+An MCP (Model Context Protocol) server for SAP Cloud Integration (CPI), powered by [odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy). It exposes CPI OData APIs as MCP tools, allowing AI assistants like Claude to manage your integration landscape through natural language.
 
 The entire server is defined through a single JSON config file -- no custom code required.
 
 ## How It Works
 
-This project uses the `odata-mcp-proxy` npm package, which maps OData/REST services to MCP tools based on a configuration file. You provide a config describing your APIs and entity sets, and the proxy generates the corresponding MCP tools automatically.
+This project uses the `odata-mcp-proxy` package, pinned to the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork over a `git+https` dependency, which maps OData/REST services to MCP tools based on a configuration file. You provide a config describing your APIs and entity sets, and the proxy generates the corresponding MCP tools automatically.
 
 ```
 AI Assistant (Claude, Cursor, etc.)
@@ -32,8 +32,8 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 |------|-----------|-------------|
 | `IntegrationPackages` | list, get, create, update, delete | Logical containers that group iFlows, value mappings, and other design-time artifacts |
 | `IntegrationDesigntimeArtifacts` | list, get, create, update, delete | iFlow design-time definitions (editable integration logic before deployment) |
-| `IntegrationRuntimeArtifacts` | list, get | Deployed integration artifacts (deployment status, version, and errors) |
-| `ValueMappingDesigntimeArtifacts` | list, get, create, update, delete | Lookup tables that translate codes/identifiers between sender and receiver systems |
+| `IntegrationRuntimeArtifacts` | list, get, delete | Deployed integration artifacts (deployment status, version, and errors) |
+| `ValueMappingDesigntimeArtifacts` | list, get, create, delete | Lookup tables that translate codes/identifiers between sender and receiver systems |
 | `MessageMappingDesigntimeArtifacts` | list, get, create, update, delete | Graphical structure-to-structure transformations between message formats |
 | `ScriptCollectionDesigntimeArtifacts` | list, get, create, update, delete | Reusable Groovy or JavaScript libraries shared across iFlows |
 | `CustomTagConfigurations` | list, get, create, update, delete | Tenant-level labels for categorizing and filtering integration packages |
@@ -92,9 +92,9 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 Served from the SAP API Management API portal (`API_DESTINATION`) under `/apiportal/api/1.0/`: `Management.svc` for most tools and `AccessControl.svc` for `ProductAccessRules`. Deletes are disabled. The tool descriptions walk an assistant through the create-proxy flow: API provider, API proxy, deploy through `APIProxyDeployments`, then attach it to a product (a proxy must be deployed first).
 
-Reads require the `read` scope and create, update and deploy require `write`. That `requiredScope` enforcement needs odata-mcp-proxy 1.1.2 or newer (or the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork build); the locked 1.0.0 does not enforce scopes, so any authenticated user can call every registered tool.
+API Management reads require the `read` scope and create, update and deploy require `write`. See [Security](#security) for when the pinned fork enforces caller scopes.
 
-The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources` are a full-replacement `PUT`, so the body must carry the whole entity (for a product, every `apiProxies` link to keep). `PUT` updates need an odata-mcp-proxy build with per-operation update methods, which only the fork build has; published builds send `PATCH`, which API Management may reject.
+The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources` are a full-replacement `PUT`, so the body must carry the whole entity (for a product, every `apiProxies` link to keep). This relies on the per-operation update methods provided by the pinned cloud-practitioner/odata-mcp-proxy fork; the previously published 1.0.0 sends `PATCH`, which API Management may reject.
 
 | Tool | Operations | Description |
 |------|-----------|-------------|
@@ -121,29 +121,30 @@ The updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `Cac
 | `CacheResources` | list, get, create, update (PUT) | Named caches used by the caching policies |
 | `ProductAccessRules` | list, get, create | Role-based Discovery and Subscription permissions for restricted products (`AccessControl.svc/Rules`) |
 
-Some operations ship disabled (plain `false`, which every odata-mcp-proxy version honours) as hardening by default:
+Some operations ship disabled as hardening by default:
 
 - `Applications` `list` and `get`: they return every application's `app_key` and `app_secret` (gateway API credentials).
 - `Developers` `list` and `get`: they return developer personal data (name, email, country).
 - `CertificateStores` `create`: the create body carries keystore key pairs and their passwords. `Certificates` is read-only.
 
-To enable one, replace its `false` in `ci-api-config.json` with `{ "enabled": true, "requiredScope": "admin" }`, for example `"list": { "enabled": true, "requiredScope": "admin" }` under `Applications`. The `admin` scope only restricts callers on odata-mcp-proxy 1.1.2 or newer (or the fork build).
+To enable one, replace its `false` in `ci-api-config.json` with `{ "enabled": true, "requiredScope": "admin" }`, for example `"list": { "enabled": true, "requiredScope": "admin" }` under `Applications`. Scope enforcement follows the policy described in [Security](#security).
 
-Disabling these operations and requiring `admin` to re-enable them is defense in depth, not an access-control boundary. Disabling a tool removes that tool but does not stop a caller from reaching the same entity set: every tool takes a free-form `path` appended to its URL, and odata-mcp-proxy collapses `..` segments, so any enabled `Management.svc` tool can be pointed at `Applications`, `Developers` or `CertificateStores` (for example `APIProxies_list` with `path: "/../Applications"`). Blocking that needs path validation in odata-mcp-proxy (rejecting `..` and `%2e%2e` segments), which is in progress in the cloud-practitioner/odata-mcp-proxy fork, or a more restricted role for the `API_DESTINATION` technical user. Both are outside this repository.
+Disabling these operations and requiring `admin` to re-enable them is defense in depth, not an access-control boundary. The pinned cloud-practitioner/odata-mcp-proxy fork (`eddb2d7`) rejects `..` and percent-encoded dot segments (such as `%2e%2e`) through its shared path guard before backend execution. For example, `APIProxies_list` with `path: "/../Applications"` now returns an error instead of reaching `Applications`; this traversal route to `Applications`, `Developers` or `CertificateStores` is blocked. This traversal guard is not a substitute for comprehensive entity-level authorization; restrict the `API_DESTINATION` technical user's backend permissions accordingly.
 
-Some documented API portal services are not exposed because odata-mcp-proxy cannot drive them:
+Some documented API portal services remain unconfigured:
 
-- Exporting an API proxy (`Transport.svc/APIProxies?name=<proxy>`) returns a binary zip and needs binary-safe response handling, available only on the fork build; published builds decode the zip as text and corrupt it. Re-add it once this server runs on the fork build.
+- Exporting an API proxy (`Transport.svc/APIProxies?name=<proxy>`) returns a binary zip. The pinned fork supports binary-safe responses, but this config does not expose an export tool.
 - Importing a proxy zip (`Transport.svc`) or a content archive (`ContentArchive.svc`) needs a `multipart/form-data` upload.
 - Exporting a content archive needs a `GET` with a request body.
 
-The CI tools above disable some operations with the object form `{ "enabled": false }`, which only odata-mcp-proxy 1.1.2 or newer (or the fork build) honours; the locked 1.0.0 still registers them. Those entries predate the API Management tools and should be migrated to plain `false` separately.
+The pinned fork honours both plain `false` and the object form `{ "enabled": false }` in `ci-api-config.json`: either omits the corresponding CRUD tool. The CI entries using the object form do not need migration to plain `false`.
 
 All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`.
 
 ## Prerequisites
 
-- **Node.js** 18+ (20+ recommended)
+- **Node.js** 22.x (declared in `engines.node` in [package.json](package.json)), matching the default Node.js version of the Cloud Foundry Node.js buildpack.
+- **Git** and outbound access to GitHub for dependency installation, including the MTA npm builder
 - **SAP BTP account** with a Cloud Foundry environment
 - **SAP Cloud Integration** tenant (part of SAP Integration Suite)
 - **SAP API Management** (API portal) subscription, only for the API Management tools
@@ -204,6 +205,8 @@ The MTA deployment provisions three service instances:
 - **XSUAA** (application) -- handles OAuth2 authentication with role-based access control
 
 ## Security
+
+The pinned cloud-practitioner/odata-mcp-proxy fork enforces `requiredScope` against the caller's JWT over HTTP when XSUAA is bound. Over stdio, or HTTP without XSUAA, it skips caller-scope checks and backend access is governed by the destination credentials instead. Do not expose unauthenticated HTTP as a role-protected server.
 
 The XSUAA configuration (`xs-security.json`) defines three role templates:
 
