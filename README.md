@@ -6,7 +6,7 @@ The entire server is defined through a single JSON config file -- no custom code
 
 ## How It Works
 
-This project uses the `odata-mcp-proxy` package, pinned to the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork over a `git+https` dependency, which maps OData/REST services to MCP tools based on a configuration file. You provide a config describing your APIs and entity sets, and the proxy generates the corresponding MCP tools automatically.
+This project uses the `odata-mcp-proxy` package, pinned to the [cloud-practitioner/odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy) fork via the `git+https` dependency in [package.json](package.json), which maps OData/REST services to MCP tools based on a configuration file. You provide a config describing your APIs and entity sets, and the proxy generates the corresponding MCP tools automatically.
 
 ```
 AI Assistant (Claude, Cursor, etc.)
@@ -129,7 +129,7 @@ Some operations ship disabled as hardening by default:
 
 To enable one, replace its `false` in `ci-api-config.json` with `{ "enabled": true, "requiredScope": "admin" }`, for example `"list": { "enabled": true, "requiredScope": "admin" }` under `Applications`. Scope enforcement follows the policy described in [Security](#security).
 
-Disabling these operations and requiring `admin` to re-enable them is defense in depth, not an access-control boundary. The pinned cloud-practitioner/odata-mcp-proxy fork (`6642261`) rejects `..` and percent-encoded dot segments (such as `%2e%2e`) through its shared path guard before backend execution. For example, `APIProxies_list` with `path: "/../Applications"` now returns an error instead of reaching `Applications`; this traversal route to `Applications`, `Developers` or `CertificateStores` is blocked. This traversal guard is not a substitute for comprehensive entity-level authorization; restrict the `API_DESTINATION` technical user's backend permissions accordingly.
+Disabling these operations and requiring `admin` to re-enable them is defense in depth, not an access-control boundary. The pinned cloud-practitioner/odata-mcp-proxy fork rejects `..` and percent-encoded dot segments (such as `%2e%2e`) through its shared path guard before backend execution. For example, `APIProxies_list` with `path: "/../Applications"` now returns an error instead of reaching `Applications`; this traversal route to `Applications`, `Developers` or `CertificateStores` is blocked. This traversal guard is not a substitute for comprehensive entity-level authorization; restrict the `API_DESTINATION` technical user's backend permissions accordingly.
 
 Some documented API portal services remain unconfigured:
 
@@ -216,7 +216,11 @@ The XSUAA configuration (`xs-security.json`) defines three role templates:
 | `MCPEditor` | read, write | Read and modify CPI and API Management data |
 | `MCPAdmin` | read, write, admin | Full administrative access |
 
-OAuth2 redirect URIs are pre-configured for Claude.ai, Cursor, Microsoft Teams, and local development in the app-root `xs-security.json`, which the proxy loads from its working directory.
+OAuth2 redirect URIs are configured in the app-root [xs-security.json](xs-security.json) for Claude.ai, Cursor, Microsoft Teams, and local development. With `npm start`, the proxy loads that file from the app's working directory. `XS_SECURITY_JSON_PATH`, if set, takes precedence (relative paths resolve from the working directory); an invalid explicit file fails startup. If no working-directory file exists, the proxy falls back to its bundled configuration.
+
+With XSUAA bound over HTTP, OAuth uses the shared `@arc-mcp/xsuaa-auth` provider. Dynamic client registration accepts only public clients (`token_endpoint_auth_method: "none"`) and `client_secret_post` clients (the default); `client_secret_basic` and other methods are rejected. Registered redirect URIs must match the configured allowlist.
+
+The proxy disables the MCP SDK's per-IP rate limits on authorization, token, registration, and revocation endpoints. Apply rate limiting at the ingress when exposing these endpoints.
 
 ## License
 
