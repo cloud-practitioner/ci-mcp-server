@@ -129,7 +129,7 @@ Some operations ship disabled as hardening by default:
 
 To enable one, replace its `false` in `ci-api-config.json` with `{ "enabled": true, "requiredScope": "admin" }`, for example `"list": { "enabled": true, "requiredScope": "admin" }` under `Applications`. Scope enforcement follows the policy described in [Security](#security).
 
-Disabling these operations and requiring `admin` to re-enable them is defense in depth, not an access-control boundary. The pinned cloud-practitioner/odata-mcp-proxy fork (`ee596f2`) rejects `..` and percent-encoded dot segments (such as `%2e%2e`) through its shared path guard before backend execution. For example, `APIProxies_list` with `path: "/../Applications"` now returns an error instead of reaching `Applications`; this traversal route to `Applications`, `Developers` or `CertificateStores` is blocked. This traversal guard is not a substitute for comprehensive entity-level authorization; restrict the `API_DESTINATION` technical user's backend permissions accordingly.
+Disabling these operations and requiring `admin` to re-enable them is defense in depth, not an access-control boundary. The pinned cloud-practitioner/odata-mcp-proxy fork (`6642261`) rejects `..` and percent-encoded dot segments (such as `%2e%2e`) through its shared path guard before backend execution. For example, `APIProxies_list` with `path: "/../Applications"` now returns an error instead of reaching `Applications`; this traversal route to `Applications`, `Developers` or `CertificateStores` is blocked. This traversal guard is not a substitute for comprehensive entity-level authorization; restrict the `API_DESTINATION` technical user's backend permissions accordingly.
 
 Some documented API portal services remain unconfigured:
 
@@ -216,7 +216,7 @@ The XSUAA configuration (`xs-security.json`) defines three role templates:
 | `MCPEditor` | read, write | Read and modify CPI and API Management data |
 | `MCPAdmin` | read, write, admin | Full administrative access |
 
-OAuth2 redirect URIs are pre-configured for Claude.ai, Cursor, Microsoft Teams, and local development.
+OAuth2 redirect URIs are pre-configured for Claude.ai, Cursor, Microsoft Teams, and local development in the app-root `xs-security.json`, which the proxy loads from its working directory.
 
 ## License
 
