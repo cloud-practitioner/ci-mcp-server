@@ -23,12 +23,54 @@
             "update": { "enabled": true,  "requiredScope": "write" },
             "delete": { "enabled": true,  "requiredScope": "admin" }
           },
-          "filterableProperties": ["Id", "Name", "ShortText", "Description", "Version", "Vendor", "Mode", "SupportedPlatform", "CreatedBy", "ModifiedBy", "CreationDate", "ModifiedDate"]
+          "filterableProperties": ["Id", "Name", "ShortText", "Description", "Version", "Vendor", "Mode", "SupportedPlatform", "CreatedBy", "ModifiedBy", "CreationDate", "ModifiedDate"],
+          "navigationProperties": [
+            {
+              "name": "IntegrationDesigntimeArtifacts",
+              "description": "the integration flows (iFlows) of the package - the way to list iFlows on CPI",
+              "isCollection": true
+            },
+            {
+              "name": "ValueMappingDesigntimeArtifacts",
+              "description": "the value mappings of the package",
+              "isCollection": true
+            },
+            {
+              "name": "MessageMappingDesigntimeArtifacts",
+              "description": "the message mappings of the package",
+              "isCollection": true
+            },
+            {
+              "name": "ScriptCollectionDesigntimeArtifacts",
+              "description": "the script collections of the package - the way to list them on CPI",
+              "isCollection": true
+            },
+            {
+              "name": "DataTypeDesigntimeArtifacts",
+              "description": "the data types of the package",
+              "isCollection": true
+            },
+            {
+              "name": "MessageTypeDesigntimeArtifacts",
+              "description": "the message types of the package",
+              "isCollection": true
+            },
+            {
+              "name": "FaultMessageTypeDesigntimeArtifacts",
+              "description": "the fault message types of the package",
+              "isCollection": true
+            },
+            {
+              "name": "ServiceInterfaceDesigntimeArtifacts",
+              "description": "the service interfaces of the package",
+              "isCollection": true
+            }
+          ]
         },
 
         {
           "entitySet": "IntegrationDesigntimeArtifacts",
-          "description": "integration flow (iFlow) design-time definitions — the editable integration logic before deployment",
+          "description": "integration flow (iFlow) design-time definitions — the editable integration logic before deployment (key-addressed on CPI: a plain list returns HTTP 501. Read one with the get tool, or list the iFlows of a package with IntegrationPackages_IntegrationDesigntimeArtifacts_list and path \"('<PackageId>')\")",
           "category": "integration-content",
           "keys": [
             { "name": "Id", "type": "string" },
@@ -116,7 +158,7 @@
 
         {
           "entitySet": "ScriptCollectionDesigntimeArtifacts",
-          "description": "script collection design-time artifacts — reusable Groovy or JavaScript libraries shared across multiple iFlows",
+          "description": "script collection design-time artifacts — reusable Groovy or JavaScript libraries shared across multiple iFlows (key-addressed on CPI: a plain list returns HTTP 501. Read one with the get tool, or list the script collections of a package with IntegrationPackages_ScriptCollectionDesigntimeArtifacts_list and path \"('<PackageId>')\")",
           "category": "integration-content",
           "keys": [
             { "name": "Id", "type": "string" },
@@ -221,7 +263,7 @@
 
         {
           "entitySet": "CustomTagConfigurations",
-          "description": "custom tag configurations — tenant-level labels used to categorize and filter integration packages",
+          "description": "custom tag configurations — tenant-level labels used to categorize and filter integration packages (key-addressed on CPI: a plain list and an entity read both return HTTP 501. Read the configuration file with the get tool and path \"('CustomTags')/$value\")",
           "category": "integration-content",
           "keys": [{ "name": "Id", "type": "string" }],
           "operations": {
@@ -236,7 +278,7 @@
 
         {
           "entitySet": "BuildAndDeployStatus",
-          "description": "build and deploy task status — track whether an iFlow deployment is queued, running, or finished",
+          "description": "build and deploy task status — track whether an iFlow deployment is queued, running, or finished (key-addressed on CPI: a plain list returns HTTP 501. Read one task with the get tool and path \"('<TaskId>')\", using the TaskId that a deploy request returned)",
           "category": "integration-content",
           "keys": [{ "name": "TaskId", "type": "string" }],
           "operations": {
@@ -380,7 +422,7 @@
 
         {
           "entitySet": "NumberRanges",
-          "description": "number range configurations — auto-incrementing counters used to generate unique sequence numbers in iFlows",
+          "description": "number range configurations — auto-incrementing counters used to generate unique sequence numbers in iFlows (CPI rejects $top on this set with HTTP 501: list without it)",
           "category": "message-stores",
           "keys": [{ "name": "Name", "type": "string" }],
           "operations": {
@@ -394,7 +436,7 @@
 
         {
           "entitySet": "MessageStoreEntries",
-          "description": "message store entries — full messages explicitly persisted via the Persist step for later retrieval or retry",
+          "description": "message store entries — full messages explicitly persisted via the Persist step for later retrieval or retry (key-addressed on CPI: a plain list returns HTTP 501. Read one with the get tool and path \"('<Id>')\", or list the entries of one message with MessageProcessingLogs_MessageStoreEntries_list and path \"('<MessageGuid>')\")",
           "category": "message-stores",
           "keys": [{ "name": "Id", "type": "string" }],
           "operations": {
@@ -409,7 +451,7 @@
 
         {
           "entitySet": "JmsBrokers",
-          "description": "JMS broker instances — the messaging broker(s) provisioned on the tenant, including capacity and queue counts",
+          "description": "JMS broker instances — the messaging broker(s) provisioned on the tenant, including capacity and queue counts (key-addressed on CPI: a plain list returns HTTP 501. Read the broker with the get tool and path \"('Broker1')\", and add ?$expand=QueueStates or ?$expand=InactiveQueues for queue states)",
           "category": "message-stores",
           "keys": [{ "name": "Key", "type": "string" }],
           "operations": {
@@ -423,7 +465,8 @@
 
         {
           "entitySet": "JmsResources",
-          "description": "JMS queue resources — individual message queues with their current depth, capacity, and consumer status",
+          "urlPath": "Queues",
+          "description": "JMS message queues - each queue with its message count, size, fill grade, and state (CPI serves them in the Queues entity set, so this tool calls Queues)",
           "category": "message-stores",
           "keys": [{ "name": "Name", "type": "string" }],
           "operations": {
@@ -437,7 +480,7 @@
 
         {
           "entitySet": "LogFiles",
-          "description": "system log files — tenant-level runtime logs (HTTP, default trace, audit) for low-level troubleshooting",
+          "description": "system log files — tenant-level runtime logs (HTTP, default trace, audit) for low-level troubleshooting (CPI rejects $top on this set with HTTP 501: list without it)",
           "category": "log-files",
           "keys": [{ "name": "Name", "type": "string" }],
           "operations": {
@@ -452,7 +495,7 @@
 
         {
           "entitySet": "LogFileArchives",
-          "description": "archived log files — compressed historical log bundles available for download",
+          "description": "archived log files — compressed historical log bundles available for download (CPI rejects $top on this set with HTTP 501: list without it)",
           "category": "log-files",
           "keys": [{ "name": "Name", "type": "string" }],
           "operations": {

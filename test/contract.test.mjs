@@ -8,8 +8,8 @@ import { startProxy } from './helpers/mcp-stdio.mjs';
 import { destinationEnv, startStub } from './helpers/stub-backend.mjs';
 
 // Update these numbers on purpose when a tool is added to or removed from the config.
-const EXPECTED_TOOL_COUNT = 215;
-const EXPECTED_READ_ONLY_COUNT = 124;
+const EXPECTED_TOOL_COUNT = 223;
+const EXPECTED_READ_ONLY_COUNT = 132;
 
 const WRITE_SUFFIXES = ['_create', '_update', '_delete'];
 
@@ -119,6 +119,46 @@ describe('ci-mcp-server contract (pinned odata-mcp-proxy, stdio, stub backend)',
       '/apiportal/api/1.0/AccessControl.svc/Rules?$top=1',
       `/apiportal/api/1.0/AccessControl.svc/Rules('r1')`,
     ]);
+  });
+
+  test('JmsResources lists the Queues entity set', async () => {
+    stub.reset();
+    await proxy.callTool('JmsResources_list', {});
+    assert.deepEqual(stub.calls.map((c) => c.url), ['/api/v1/Queues']);
+  });
+
+  test('IntegrationPackages exposes its design-time artifact sets as navigation tools', async () => {
+    const artifactSets = [
+      'IntegrationDesigntimeArtifacts', 'ValueMappingDesigntimeArtifacts', 'MessageMappingDesigntimeArtifacts',
+      'ScriptCollectionDesigntimeArtifacts', 'DataTypeDesigntimeArtifacts', 'MessageTypeDesigntimeArtifacts',
+      'FaultMessageTypeDesigntimeArtifacts', 'ServiceInterfaceDesigntimeArtifacts',
+    ];
+    const names = tools.map((t) => t.name);
+    for (const set of artifactSets) assert.ok(names.includes(`IntegrationPackages_${set}_list`), `missing IntegrationPackages_${set}_list`);
+    stub.reset();
+    await proxy.callTool('IntegrationPackages_IntegrationDesigntimeArtifacts_list', { path: `('Pkg1')` });
+    assert.deepEqual(stub.calls.map((c) => c.url), [`/api/v1/IntegrationPackages('Pkg1')/IntegrationDesigntimeArtifacts`]);
+  });
+
+  test('list tools that fail on a tenant say so in their description', () => {
+    const describe = (name) => tools.find((t) => t.name === name).description;
+    // Plain list answers HTTP 501 on a Cloud Foundry tenant: the description must say so and name the way to read the data.
+    const keyAddressed = {
+      IntegrationDesigntimeArtifacts_list: /501.*IntegrationPackages_IntegrationDesigntimeArtifacts_list/,
+      ScriptCollectionDesigntimeArtifacts_list: /501.*IntegrationPackages_ScriptCollectionDesigntimeArtifacts_list/,
+      CustomTagConfigurations_list: /501.*\('CustomTags'\)\/\$value/,
+      BuildAndDeployStatus_list: /501.*TaskId/,
+      MessageStoreEntries_list: /501.*MessageProcessingLogs_MessageStoreEntries_list/,
+      JmsBrokers_list: /501.*\('Broker1'\)/,
+    };
+    for (const [name, pattern] of Object.entries(keyAddressed)) {
+      assert.match(describe(name), /key-addressed/, name);
+      assert.match(describe(name), pattern, name);
+    }
+    // $top answers HTTP 501 on these sets.
+    for (const name of ['NumberRanges_list', 'LogFiles_list', 'LogFileArchives_list']) {
+      assert.match(describe(name), /rejects \$top.*list without it/, name);
+    }
   });
 
   test('a binary $value round-trips byte-exactly', async () => {

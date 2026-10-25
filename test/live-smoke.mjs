@@ -293,12 +293,25 @@ try {
     if (!called.ok) fail(`IntegrationDesigntimeArtifacts_Resources_list: ${called.httpStatus} ${called.error}`);
   }
 
-  // ---- 3. keyed reads that the tool descriptions point to
+  // ---- 3. reads that the tool descriptions point to (recorded, not failures: keys and data differ per tenant)
   if (has('JmsBrokers_get')) {
     const broker = await callTool(proxy, 'JmsBrokers_get', { path: `('Broker1')` });
     results.keyedProbes.push({ tool: 'JmsBrokers_get', key: 'Broker1 (the documented default key)', ...publicView(broker) });
     const expand = await callTool(proxy, 'JmsBrokers_get', { path: `('Broker1')?$expand=QueueStates` });
     results.keyedProbes.push({ tool: 'JmsBrokers_get', option: '$expand=QueueStates', ...publicView(expand) });
+  }
+
+  if (has('CustomTagConfigurations_get')) {
+    const tags = await callTool(proxy, 'CustomTagConfigurations_get', { path: `('CustomTags')/$value` });
+    results.keyedProbes.push({ tool: 'CustomTagConfigurations_get', option: "('CustomTags')/$value", ...publicView(tags) });
+  }
+  if (has('MessageProcessingLogs_MessageStoreEntries_list') && has('MessageProcessingLogs_list')) {
+    const logs = await callTool(proxy, 'MessageProcessingLogs_list', { path: '?$top=1' });
+    const guid = logs.data?.d?.results?.[0]?.MessageGuid;
+    if (guid) {
+      const entries = await callTool(proxy, 'MessageProcessingLogs_MessageStoreEntries_list', { path: `('${guid}')` });
+      results.keyedProbes.push({ tool: 'MessageProcessingLogs_MessageStoreEntries_list', key: 'first message processing log', ...publicView(entries) });
+    }
   }
 
   // ---- 4. /$value pair: MCP vs the tenant bytes the forwarder saw vs a direct authenticated GET

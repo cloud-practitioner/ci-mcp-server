@@ -30,7 +30,7 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 | Tool | Operations | Description |
 |------|-----------|-------------|
-| `IntegrationPackages` | list, get, create, update, delete | Logical containers that group iFlows, value mappings, and other design-time artifacts |
+| `IntegrationPackages` | list, get, create, update, delete | Logical containers that group iFlows, value mappings, and other design-time artifacts. Navigation tools such as `IntegrationPackages_IntegrationDesigntimeArtifacts_list` list the design-time artifacts of one package |
 | `IntegrationDesigntimeArtifacts` | list, get, create, update, delete | iFlow design-time definitions (editable integration logic before deployment) |
 | `IntegrationRuntimeArtifacts` | list, get, delete | Deployed integration artifacts (deployment status, version, and errors) |
 | `ValueMappingDesigntimeArtifacts` | list, get, create, delete | Lookup tables that translate codes/identifiers between sender and receiver systems |
@@ -56,7 +56,7 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 | `NumberRanges` | list, get | Auto-incrementing counters for generating unique sequence numbers |
 | `MessageStoreEntries` | list, get | Full messages persisted via the Persist step for later retrieval or retry |
 | `JmsBrokers` | list, get | Messaging broker instances provisioned on the tenant |
-| `JmsResources` | list | Individual JMS message queues with depth, capacity, and consumer status |
+| `JmsResources` | list | Individual JMS message queues with message count, size, fill grade, and state (the `Queues` entity set) |
 
 ### Log Files
 
@@ -139,7 +139,36 @@ Some documented API portal services remain unconfigured:
 
 The pinned fork honours both plain `false` and the object form `{ "enabled": false }` in `ci-api-config.json`: either omits the corresponding CRUD tool. The CI entries using the object form do not need migration to plain `false`.
 
-All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`.
+### Query options
+
+Every `_list` tool takes an OData `path` suffix, for example `?$top=10`. The server forwards it unchanged. SAP Cloud Integration does not support every query option on every entity set, and a set that does not support an option answers with HTTP 501, 400 or 500. Check a set in the SAP Business Accelerator Hub before you rely on an option.
+
+Observed with `GET` requests on one Cloud Foundry tenant. A Neo tenant may answer differently.
+
+| Entity set | Result |
+|------------|--------|
+| API Management sets, for example `APIProxies` | `$filter`, `$select`, `$orderby`, `$skip`, `$top` and `$inlinecount` work. `$expand` needs a navigation property that the set declares. |
+| `IntegrationRuntimeArtifacts`, `MessageProcessingLogs` | `$filter`, `$select`, `$orderby`, `$skip` and `$top` work. On `MessageProcessingLogs`, `$expand=Runs` returns 501. |
+| `IntegrationPackages` | `$top`, `$skip` and `$orderby` work. `$select`, `$filter`, `$inlinecount` and `$expand` return 501. |
+| `NumberRanges` | No query option works. Every option, including `$top`, returns 501. |
+| `LogFiles`, `LogFileArchives` | `$top` returns 501. List them without a path. On `LogFiles`, `$select` works and `$orderby` and `$skip` return 501. |
+
+### Sets that cannot be listed
+
+On the same tenant a plain list of these sets returns HTTP 501. The tool description of each set says how to read it:
+
+| Entity set | How to read it |
+|------------|----------------|
+| `IntegrationDesigntimeArtifacts` | `IntegrationPackages_IntegrationDesigntimeArtifacts_list` with path `('<PackageId>')`, or `IntegrationDesigntimeArtifacts_get` with `(Id='<Id>',Version='<Version>')` |
+| `ScriptCollectionDesigntimeArtifacts` | `IntegrationPackages_ScriptCollectionDesigntimeArtifacts_list` with path `('<PackageId>')`, or the get tool |
+| `CustomTagConfigurations` | `CustomTagConfigurations_get` with path `('CustomTags')/$value`. An entity read of the same key also returns 501. |
+| `BuildAndDeployStatus` | `BuildAndDeployStatus_get` with `('<TaskId>')`, where the TaskId comes from a deploy request |
+| `MessageStoreEntries` | `MessageProcessingLogs_MessageStoreEntries_list` with `('<MessageGuid>')`, or `MessageStoreEntries_get` with `('<Id>')` |
+| `JmsBrokers` | `JmsBrokers_get` with `('Broker1')`. Add `?$expand=QueueStates` or `?$expand=InactiveQueues` for queue states. |
+
+The other design-time artifact sets of a package are listed the same way, with `IntegrationPackages_<Set>_list` and the path `('<PackageId>')`.
+
+`JmsResources_list` reads the `Queues` entity set. The name `JmsResources` is the SAP documentation topic, not an entity set. `GetAllRevisions_list` needs the proxy name: pass `?apiProxyName='<name>'`.
 
 ## Prerequisites
 
@@ -213,7 +242,7 @@ The MTA deployment provisions three service instances:
 
 The test starts the pinned `odata-mcp-proxy` over stdio with the real `ci-api-config.json`, a local stub backend and fake credentials. It checks that:
 
-- the tool names equal the set derived from `ci-api-config.json` (215 tools), and `MCP_READ_ONLY=true` registers only the 124 read tools
+- the tool names equal the set derived from `ci-api-config.json` (223 tools), and `MCP_READ_ONLY=true` registers only the 132 read tools
 - every tool sends the expected HTTP method and URL: `PUT` for the updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources`, `PATCH` for the other updates, and `AccessControl.svc/Rules` for `ProductAccessRules`
 - a binary `$value` download round-trips byte for byte
 - stdout carries only JSON-RPC
