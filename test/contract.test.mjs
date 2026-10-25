@@ -203,6 +203,27 @@ describe('ci-mcp-server contract (pinned odata-mcp-proxy, stdio, stub backend)',
   });
 });
 
+describe('ci-mcp-server accepted MCP_READ_ONLY startup values', () => {
+  for (const value of [undefined, '', 'true', 'TRUE', 'tRuE', '1', 'false', 'FALSE', 'fAlSe', '0']) {
+    test(`MCP_READ_ONLY=${value === undefined ? '<unset>' : JSON.stringify(value)} preserves the documented write policy`, async () => {
+      const stub = await startStub();
+      const readOnly = ['true', '1'].includes(value?.toLowerCase());
+      const proxy = startProxy({ env: { ...destinationEnv(stub.baseUrl), ...(value === undefined ? {} : { MCP_READ_ONLY: value }) } });
+      try {
+        await proxy.initialize();
+        const tools = await proxy.listTools();
+        assert.equal(tools.length, readOnly ? EXPECTED_READ_ONLY_COUNT : EXPECTED_TOOL_COUNT);
+        const response = await proxy.callTool('IntegrationPackages_create', { body: { Id: 'startup-value-test' } });
+        assert.equal(Boolean(response.error || response.result?.isError), readOnly);
+        assert.deepEqual(stub.calls.map((call) => call.method), readOnly ? [] : ['POST']);
+      } finally {
+        await proxy.close();
+        await stub.close();
+      }
+    });
+  }
+});
+
 describe('ci-mcp-server read-only mode (MCP_READ_ONLY=true)', () => {
   let stub;
   let proxy;

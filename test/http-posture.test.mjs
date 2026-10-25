@@ -5,11 +5,11 @@
 // because every check here is decided before any token is verified.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFileSync, rmSync } from 'node:fs';
+import { copyFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
-import { configPath, proxyCliPath, xsSecurityPath } from './helpers/config.mjs';
+import { proxyCliPath, xsSecurityPath } from './helpers/config.mjs';
 import { cleanEnv, makeWorkdir } from './helpers/mcp-stdio.mjs';
 import { destinationEnv } from './helpers/stub-backend.mjs';
 
@@ -48,7 +48,7 @@ function freePort() {
 /** Start the proxy over HTTP. Resolves with helpers once /health answers, or with `exited` if it quits. */
 async function startHttpProxy({ env = {}, cwd = makeWorkdir() } = {}) {
   const port = await freePort();
-  const child = spawn(process.execPath, [proxyCliPath, '--config', configPath], {
+  const child = spawn(process.execPath, [proxyCliPath], {
     cwd,
     env: cleanEnv({
       PORT: String(port),
@@ -102,6 +102,27 @@ const initializeRequest = {
 };
 
 describe('HTTP posture of the pinned proxy', () => {
+  const invalidReadOnlyCases = [
+    ...[' ', '\t', '\n', ' true', 'false ', ' 0 ', '1\t', 'yes', '2'].map((value) => ({ source: 'environment', value })),
+    { source: 'default-env.json', value: ' ' },
+    { source: '.env', value: ' ' },
+  ];
+  for (const { source, value } of invalidReadOnlyCases) {
+    test(`rejects invalid MCP_READ_ONLY ${JSON.stringify(value)} from ${source} before listening`, async () => {
+      const cwd = makeWorkdir();
+      if (source === 'default-env.json') writeFileSync(join(cwd, source), JSON.stringify({ MCP_READ_ONLY: value }));
+      if (source === '.env') writeFileSync(join(cwd, source), `MCP_READ_ONLY=${JSON.stringify(value)}\n`);
+      const proxy = await startHttpProxy({ cwd, env: source === 'environment' ? { MCP_READ_ONLY: value } : {} });
+      try {
+        assert.equal(await proxy.ready, false, 'an invalid read-only value must not start a server');
+        assert.equal(await proxy.exited, 1);
+        assert.match(proxy.output, /MCP_READ_ONLY/);
+      } finally {
+        await proxy.stop();
+      }
+    });
+  }
+
   test('local HTTP without XSUAA serves /health', async () => {
     const proxy = await startHttpProxy();
     try {

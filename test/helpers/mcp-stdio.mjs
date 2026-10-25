@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { configPath, proxyCliPath } from './config.mjs';
+import { proxyCliPath } from './config.mjs';
 
 /**
  * Environment for a child proxy: only what the proxy needs. Nothing is
@@ -23,7 +23,7 @@ export function makeWorkdir() {
 
 export function startProxy({ env, readOnly = false } = {}) {
   const cwd = makeWorkdir();
-  const child = spawn(process.execPath, [proxyCliPath, '--config', configPath], {
+  const child = spawn(process.execPath, [proxyCliPath], {
     cwd,
     env: cleanEnv({
       MCP_TRANSPORT: 'stdio',

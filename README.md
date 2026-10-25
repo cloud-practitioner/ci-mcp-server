@@ -187,6 +187,7 @@ The other design-time artifact sets of a package are listed the same way, with `
 ```
 ci-mcp-server/
 ├── package.json              # Start script + odata-mcp-proxy dependency
+├── server.mjs                # App entry point with strict read-only startup validation
 ├── ci-api-config.json        # API configuration (defines all MCP tools)
 ├── mta.yaml                  # BTP Cloud Foundry deployment descriptor
 ├── xs-security.json          # XSUAA OAuth2 configuration
@@ -222,7 +223,7 @@ Create a `default-env.json` with your BTP service bindings (XSUAA, Destination, 
 npm start
 ```
 
-This runs `odata-mcp-proxy --config ci-api-config.json`.
+This runs `server.mjs`, which starts the pinned proxy with `ci-api-config.json` and rejects whitespace-padded `MCP_READ_ONLY` values, including whitespace-only values, after loading local environment files.
 
 ### 4. Deploy to BTP
 

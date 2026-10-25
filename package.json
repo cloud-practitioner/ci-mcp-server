@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "odata-mcp-proxy --config ci-api-config.json",
+    "start": "node server.mjs",
     "test": "node --test --test-reporter=spec \"test/*.test.mjs\"",
     "test:live": "node test/live-smoke.mjs",
     "build:btp": "mbt build",

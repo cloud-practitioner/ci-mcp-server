@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 export const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const configPath = join(repoRoot, 'ci-api-config.json');
 export const xsSecurityPath = join(repoRoot, 'xs-security.json');
-export const proxyCliPath = join(repoRoot, 'node_modules', 'odata-mcp-proxy', 'dist', 'cli.js');
+export const proxyCliPath = join(repoRoot, 'server.mjs');
 
 export const apiConfig = JSON.parse(readFileSync(configPath, 'utf8'));
 export const xsSecurity = JSON.parse(readFileSync(xsSecurityPath, 'utf8'));
