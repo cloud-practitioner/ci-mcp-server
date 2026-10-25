@@ -261,7 +261,9 @@ How it stays read-only:
 - It puts a local forwarder between the proxy and the tenant. The forwarder passes `GET` and answers every other method with 405.
 - The only `POST` it sends is the OAuth token request to the token URL.
 
-It calls every `_list` tool with `?$top=1`, then without a path when that fails. It skips the 19 sets that hold credentials, keys, key-value data, partner parameters or message data. It calls `GetAllRevisions` with an `apiProxyName` taken from the tenant. It lists the artifacts of a package, and it downloads one iFlow through the proxy with `IntegrationDesigntimeArtifacts_get` and `/$value`. It compares those bytes with the bytes the tenant sent and with a direct authenticated `GET`.
+For listable sets, it requests `?$top=1` first. Only `NumberRanges`, `LogFiles` and `LogFileArchives` also receive a plain unrestricted list, to check their documented `$top` limitation. The six [key-addressed sets](#sets-that-cannot-be-listed) receive only the plain-list probe that can return 501. There is no unrestricted fallback for other sets, including `MessageProcessingLogs`, `Policies` and `ResultsUTC`. It skips the 19 sets that hold credentials, keys, key-value data, partner parameters or message data.
+
+It calls `GetAllRevisions` with an `apiProxyName` taken from the bounded API proxy list and checks that omitting the parameter returns 400. It searches at most the first 20 packages for an iFlow, checks all eight package-navigation tools, and downloads one iFlow through `IntegrationDesigntimeArtifacts_get` with `/$value`. Failed or malformed discovery is a failure, not an empty-data skip; successful discovery with no packages or iFlows may skip the dependent checks. The forwarder streams responses while hashing and counting their bytes, retaining no response bodies. The download check keeps only the MCP-decoded and direct-GET bytes needed for comparison.
 
 Set these environment variables. The test never prints their values:
 
@@ -277,9 +279,11 @@ set -a; . /path/to/your/credentials.env; set +a
 npm run test:live
 ```
 
-The command exits with 0 when no unexpected failure occurred. The JSON result holds tool names, HTTP statuses, item counts and sizes. It holds no tenant host, no id, no token and no business data. Use it as evidence in a pull request.
+The command prints PASS and exits with 0 when no unexpected failure occurred; otherwise it prints FAIL and exits with 1. Required list, navigation, keyed-read, discovery and download failures count as failures. The JSON result holds tool names, fixed diagnostic codes, HTTP statuses, item counts and sizes. Raw proxy, authentication and tenant error text is never published in the report or console output. It holds no tenant host, no id, no token and no business data. Use it as evidence in a pull request.
 
-Some tool calls fail on purpose on a Cloud Foundry tenant. See [Query options](#query-options). The test labels them "fails (known limit)", and does not count them as failures.
+Some tool calls fail on purpose on a Cloud Foundry tenant. See [Query options](#query-options). Only the documented operation-specific responses are exempt: 501 for a plain list of a key-addressed set, 501 for `$top` on the three unsupported sets (whose plain list must still succeed), and 400 for `GetAllRevisions` without its required parameter. A key-addressed plain-list 501 is labeled "fails (known limit)"; membership in a known-limit set never exempts an unexpected status.
+
+`npm test` also runs the live CLI against a local tenant stub to cover its evidence privacy, bounded requests, download comparison and PASS/FAIL classification without credentials or external requests.
 
 ## Security
 

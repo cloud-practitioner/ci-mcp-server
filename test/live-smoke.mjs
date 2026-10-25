@@ -16,6 +16,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { configPath, deriveExpectedTools, proxyCliPath, repoRoot } from './helpers/config.mjs';
 
 const REQUIRED = ['CPI_DESTINATION', 'API_DESTINATION'].flatMap((p) => ['BASE_URL', 'TOKEN_URL', 'CLIENT_ID', 'CLIENT_SECRET'].map((s) => `${p}_${s}`));
@@ -71,15 +72,24 @@ function startForwarder(baseUrlEnv) {
     }
     try {
       const upstream = await tenantGet(`${base}${req.url}`, { authorization: req.headers.authorization, accept: req.headers.accept ?? 'application/json' });
-      const bytes = Buffer.from(await upstream.arrayBuffer());
-      observed.push({ status: upstream.status, bytes, sha256: createHash('sha256').update(bytes).digest('hex') });
+      const hash = createHash('sha256');
+      let size = 0;
       const headers = {};
       const contentType = upstream.headers.get('content-type');
       if (contentType) headers['content-type'] = contentType;
-      res.writeHead(upstream.status, headers).end(bytes);
-    } catch (error) {
-      observed.push({ status: 0, bytes: Buffer.alloc(0), sha256: '', error: String(error?.message ?? error).slice(0, 120) });
-      res.writeHead(502).end();
+      res.writeHead(upstream.status, headers);
+      await pipeline(upstream.body ?? [], async function* (source) {
+        for await (const chunk of source) {
+          size += chunk.length;
+          hash.update(chunk);
+          yield chunk;
+        }
+      }, res);
+      observed.push({ status: upstream.status, size, sha256: hash.digest('hex') });
+    } catch {
+      observed.push({ status: 0, size: 0, sha256: '' });
+      if (res.headersSent) res.destroy();
+      else res.writeHead(502).end();
     }
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, url: `http://127.0.0.1:${server.address().port}` })));
@@ -165,25 +175,39 @@ async function callTool(proxy, name, args) {
   const upstream = observed.slice(before);
   const last = upstream.at(-1);
   const isError = Boolean(response.error || response.result?.isError);
-  const text = response.result?.content?.[0]?.text ?? response.error?.message ?? '';
+  const ok = !isError && last?.status >= 200 && last.status < 300;
   let data;
-  if (!isError) {
+  if (ok) {
     try {
-      data = JSON.parse(text);
+      data = JSON.parse(response.result?.content?.[0]?.text ?? '');
     } catch {
       data = undefined;
     }
   }
   return {
-    ok: !isError,
+    ok,
     httpStatus: last?.status ?? null,
-    error: isError ? String(text).replace(/^Error:\s*/, '').slice(0, 160) : undefined,
+    errorCode: ok ? undefined : !last ? 'NO_UPSTREAM_RESPONSE' : last.status === 0 ? 'UPSTREAM_REQUEST_FAILED' : isError ? 'MCP_ERROR' : 'HTTP_ERROR',
     items: Array.isArray(data?.d?.results) ? data.d.results.length : undefined,
     data,
     upstream: last,
   };
 }
-const publicView = ({ ok, httpStatus, error, items }) => ({ ok, httpStatus, ...(error ? { error } : {}), ...(items !== undefined ? { items } : {}) });
+const publicView = ({ ok, httpStatus, errorCode, items }) => ({ ok, httpStatus, ...(errorCode ? { errorCode } : {}), ...(items !== undefined ? { items } : {}) });
+
+function checkSuccess(called, label) {
+  if (!called.ok) fail(`${label}: ${called.errorCode} (HTTP ${called.httpStatus ?? 'none'})`);
+  return called.ok;
+}
+
+function collectionItems(called, label) {
+  if (!checkSuccess(called, label)) throw new Error('COLLECTION_REQUEST_FAILED');
+  if (!Array.isArray(called.data?.d?.results)) {
+    fail(`${label}: INVALID_COLLECTION_RESPONSE`);
+    throw new Error('INVALID_COLLECTION_RESPONSE');
+  }
+  return called.data.d.results;
+}
 
 // ---------------------------------------------------------------- zip helper
 /** Entry names and CRC-32 values from a zip's central directory. */
@@ -229,7 +253,7 @@ try {
   const has = (name) => listed.includes(name);
 
   // ---- 1. list sweep
-  const apiProxyName = { value: undefined };
+  let apiProxyName;
   const listTools = deriveExpectedTools({ readOnly: true }).filter((t) => t.kind === 'list');
   for (const tool of listTools) {
     if (SENSITIVE_SETS.has(tool.entitySet)) {
@@ -238,29 +262,46 @@ try {
     }
     if (tool.entitySet === 'GetAllRevisions') continue; // needs a parameter, handled below
     const entry = { tool: tool.name };
-    if (KEY_ADDRESSED_SETS.has(tool.entitySet)) entry.knownLimit = 'key-addressed on CPI: a plain list may answer 501';
-    if (NO_TOP_SETS.has(tool.entitySet)) entry.knownLimit = '$top is not supported';
-    const plain = await callTool(proxy, tool.name, {});
-    entry.plain = publicView(plain);
-    if (!NO_TOP_SETS.has(tool.entitySet) && !KEY_ADDRESSED_SETS.has(tool.entitySet)) {
+    if (KEY_ADDRESSED_SETS.has(tool.entitySet)) {
+      entry.knownLimit = 'key-addressed on CPI: a plain list may answer 501';
+      const plain = await callTool(proxy, tool.name, {});
+      entry.plain = publicView(plain);
+      entry.verdict = plain.ok ? 'works' : plain.httpStatus === 501 ? 'fails (known limit)' : 'UNEXPECTED FAILURE';
+      if (entry.verdict === 'UNEXPECTED FAILURE') checkSuccess(plain, `${tool.name} plain list`);
+    } else {
       const top = await callTool(proxy, tool.name, { path: '?$top=1' });
       entry.top1 = publicView(top);
-      if (tool.entitySet === 'APIProxies' && top.ok) apiProxyName.value = top.data?.d?.results?.[0]?.name;
-    } else if (NO_TOP_SETS.has(tool.entitySet)) {
-      entry.top1 = publicView(await callTool(proxy, tool.name, { path: '?$top=1' }));
+      let works;
+      if (NO_TOP_SETS.has(tool.entitySet)) {
+        entry.knownLimit = '$top is not supported';
+        const topAccepted = top.ok || top.httpStatus === 501;
+        if (!topAccepted) checkSuccess(top, `${tool.name} $top=1`);
+        const plain = await callTool(proxy, tool.name, {});
+        entry.plain = publicView(plain);
+        const plainAccepted = checkSuccess(plain, `${tool.name} plain list`);
+        works = topAccepted && plainAccepted;
+      } else {
+        works = checkSuccess(top, `${tool.name} $top=1`);
+      }
+      if (tool.entitySet === 'APIProxies') {
+        const proxies = collectionItems(top, 'APIProxies discovery');
+        apiProxyName = proxies[0]?.name;
+        if (proxies.length && !apiProxyName) throw new Error('MISSING_PROXY_NAME');
+      }
+      entry.verdict = works ? 'works' : 'UNEXPECTED FAILURE';
     }
-    entry.verdict = plain.ok || entry.top1?.ok ? 'works' : entry.knownLimit ? 'fails (known limit)' : 'UNEXPECTED FAILURE';
-    if (entry.verdict === 'UNEXPECTED FAILURE') fail(`${tool.name}: ${plain.httpStatus} ${plain.error}`);
     results.sweep.push(entry);
   }
 
   // GetAllRevisions needs the apiProxyName parameter (see its tool description).
   if (has('GetAllRevisions_list')) {
-    if (apiProxyName.value) {
-      const called = await callTool(proxy, 'GetAllRevisions_list', { path: `?apiProxyName='${apiProxyName.value}'` });
+    if (apiProxyName) {
+      const called = await callTool(proxy, 'GetAllRevisions_list', { path: `?apiProxyName='${apiProxyName}'` });
       const bare = await callTool(proxy, 'GetAllRevisions_list', { path: '?$top=1' });
-      results.sweep.push({ tool: 'GetAllRevisions_list', withApiProxyName: publicView(called), withoutParameter: publicView(bare), verdict: called.ok ? 'works with apiProxyName' : 'UNEXPECTED FAILURE' });
-      if (!called.ok) fail(`GetAllRevisions_list with apiProxyName: ${called.httpStatus} ${called.error}`);
+      const works = checkSuccess(called, 'GetAllRevisions_list with apiProxyName');
+      const expectedMissingParameter = !bare.ok && bare.httpStatus === 400;
+      if (!expectedMissingParameter) fail('GetAllRevisions_list without apiProxyName: EXPECTED_HTTP_400');
+      results.sweep.push({ tool: 'GetAllRevisions_list', withApiProxyName: publicView(called), withoutParameter: publicView(bare), verdict: works && expectedMissingParameter ? 'works with apiProxyName' : 'UNEXPECTED FAILURE' });
     } else {
       results.sweep.push({ tool: 'GetAllRevisions_list', skipped: 'no API proxy on the tenant to name' });
     }
@@ -268,15 +309,17 @@ try {
 
   // ---- 2. IntegrationPackages navigation and iFlow discovery
   const packages = await callTool(proxy, 'IntegrationPackages_list', { path: '?$top=20' });
-  const packageIds = (packages.data?.d?.results ?? []).map((p) => p.Id).filter(Boolean);
+  const packageIds = collectionItems(packages, 'IntegrationPackages discovery').map((p) => p.Id);
+  if (packageIds.some((id) => !id)) throw new Error('MISSING_PACKAGE_ID');
   const packageNavTools = listed.filter((n) => n.startsWith('IntegrationPackages_') && n.endsWith('_list') && n !== 'IntegrationPackages_list');
   results.navigation.push({ check: 'IntegrationPackages navigation tools registered', count: packageNavTools.length, tools: packageNavTools });
   let iflow;
   for (const id of packageIds) {
     // The key-addressed path works with or without navigation tools, so discovery does not depend on them.
     const viaGet = await callTool(proxy, 'IntegrationPackages_get', { path: `('${id}')/IntegrationDesigntimeArtifacts` });
-    const first = viaGet.data?.d?.results?.[0];
-    if (!iflow && first) iflow = { id: first.Id, version: first.Version, packageId: id };
+    const first = collectionItems(viaGet, 'IntegrationPackages iFlow discovery')[0];
+    if (first && (!first.Id || !first.Version)) throw new Error('MISSING_ARTIFACT_KEY');
+    if (first) iflow = { id: first.Id, version: first.Version, packageId: id };
     if (iflow) break;
   }
   const probePackage = iflow?.packageId ?? packageIds[0];
@@ -284,33 +327,39 @@ try {
     for (const name of packageNavTools) {
       const called = await callTool(proxy, name, { path: `('${probePackage}')` });
       results.navigation.push({ tool: name, ...publicView(called) });
-      if (!called.ok) fail(`${name}: ${called.httpStatus} ${called.error}`);
+      checkSuccess(called, name);
     }
   }
   if (iflow && has('IntegrationDesigntimeArtifacts_Resources_list')) {
     const called = await callTool(proxy, 'IntegrationDesigntimeArtifacts_Resources_list', { path: `(Id='${iflow.id}',Version='${iflow.version}')` });
     results.navigation.push({ tool: 'IntegrationDesigntimeArtifacts_Resources_list', ...publicView(called) });
-    if (!called.ok) fail(`IntegrationDesigntimeArtifacts_Resources_list: ${called.httpStatus} ${called.error}`);
+    checkSuccess(called, 'IntegrationDesigntimeArtifacts_Resources_list');
   }
 
-  // ---- 3. reads that the tool descriptions point to (recorded, not failures: keys and data differ per tenant)
+  // ---- 3. reads that the tool descriptions point to
   if (has('JmsBrokers_get')) {
     const broker = await callTool(proxy, 'JmsBrokers_get', { path: `('Broker1')` });
     results.keyedProbes.push({ tool: 'JmsBrokers_get', key: 'Broker1 (the documented default key)', ...publicView(broker) });
+    checkSuccess(broker, 'JmsBrokers_get');
     const expand = await callTool(proxy, 'JmsBrokers_get', { path: `('Broker1')?$expand=QueueStates` });
     results.keyedProbes.push({ tool: 'JmsBrokers_get', option: '$expand=QueueStates', ...publicView(expand) });
+    checkSuccess(expand, 'JmsBrokers_get $expand=QueueStates');
   }
 
   if (has('CustomTagConfigurations_get')) {
     const tags = await callTool(proxy, 'CustomTagConfigurations_get', { path: `('CustomTags')/$value` });
     results.keyedProbes.push({ tool: 'CustomTagConfigurations_get', option: "('CustomTags')/$value", ...publicView(tags) });
+    checkSuccess(tags, 'CustomTagConfigurations_get $value');
   }
   if (has('MessageProcessingLogs_MessageStoreEntries_list') && has('MessageProcessingLogs_list')) {
     const logs = await callTool(proxy, 'MessageProcessingLogs_list', { path: '?$top=1' });
-    const guid = logs.data?.d?.results?.[0]?.MessageGuid;
+    const logItems = collectionItems(logs, 'MessageProcessingLogs discovery');
+    const guid = logItems[0]?.MessageGuid;
+    if (logItems.length && !guid) throw new Error('MISSING_MESSAGE_GUID');
     if (guid) {
       const entries = await callTool(proxy, 'MessageProcessingLogs_MessageStoreEntries_list', { path: `('${guid}')` });
       results.keyedProbes.push({ tool: 'MessageProcessingLogs_MessageStoreEntries_list', key: 'first message processing log', ...publicView(entries) });
+      checkSuccess(entries, 'MessageProcessingLogs_MessageStoreEntries_list');
     }
   }
 
@@ -322,15 +371,14 @@ try {
     const called = await callTool(proxy, 'IntegrationDesigntimeArtifacts_get', { path });
     const pair = { artifact: 'first iFlow found (id withheld)', mcp: publicView(called) };
     const envelope = called.data;
-    if (called.ok && envelope?.encoding === 'base64') {
+    if (called.ok && envelope?.encoding === 'base64' && typeof envelope.data === 'string') {
       const mcpBytes = Buffer.from(envelope.data, 'base64');
       const direct = await tenantGet(`${process.env.CPI_DESTINATION_BASE_URL.replace(/\/+$/, '')}/api/v1/IntegrationDesigntimeArtifacts${path}`, {
         authorization: `Bearer ${await fetchToken('CPI_DESTINATION')}`,
       });
       const directBytes = Buffer.from(await direct.arrayBuffer());
       const seen = called.upstream;
-      pair.contentType = envelope.contentType;
-      pair.sizes = { mcpDecoded: mcpBytes.length, envelopeSize: envelope.size, forwarder: seen.bytes.length, direct: directBytes.length };
+      pair.sizes = { mcpDecoded: mcpBytes.length, envelopeSize: Number.isSafeInteger(envelope.size) ? envelope.size : undefined, forwarder: seen.size, direct: directBytes.length };
       pair.directStatus = direct.status;
       pair.mcpEqualsTenantBytes = sha256(mcpBytes) === seen.sha256; // the proxy changed nothing
       pair.mcpEqualsDirectGet = sha256(mcpBytes) === sha256(directBytes);
@@ -344,14 +392,14 @@ try {
         ? 'byte-identical to the direct GET'
         : 'the tenant builds a fresh zip per request, so entries with a different CRC can differ (earlier analysis: timestamps only); the proxy is checked against the tenant bytes it received';
     } else {
-      fail(`value pair: tool call failed (${called.httpStatus} ${called.error})`);
+      fail(`value pair: INVALID_BINARY_RESPONSE (HTTP ${called.httpStatus ?? 'none'})`);
     }
     results.valuePairs.push(pair);
   }
 
   if (results.forwarder.nonGetRefused > 0) fail(`${results.forwarder.nonGetRefused} non-GET request(s) reached the forwarder and were refused`);
-} catch (error) {
-  fail(`smoke run aborted: ${String(error?.message ?? error).slice(0, 200)}`);
+} catch {
+  fail('SMOKE_RUN_ABORTED');
 } finally {
   await proxy.close();
   cpiForwarder.server.close();
@@ -377,8 +425,7 @@ writeFileSync(outFile, `${JSON.stringify(results, null, 2)}\n`);
 
 console.log(`live smoke: ${results.tools.count ?? '?'} read tools; ${swept.length} list tools swept (${results.summary.skippedSensitive} sensitive sets skipped)`);
 for (const entry of swept) {
-  const view = entry.plain ?? entry.withApiProxyName;
-  console.log(`  ${String(entry.verdict).padEnd(22)} ${entry.tool}  plain=${view?.httpStatus ?? '-'}${entry.top1 ? ` top1=${entry.top1.httpStatus}` : ''}`);
+  console.log(`  ${String(entry.verdict).padEnd(22)} ${entry.tool}${entry.top1 ? ` top1=${entry.top1.httpStatus ?? '-'}` : ''}${entry.plain ? ` plain=${entry.plain.httpStatus ?? '-'}` : ''}${entry.withApiProxyName ? ` withApiProxyName=${entry.withApiProxyName.httpStatus ?? '-'} withoutParameter=${entry.withoutParameter.httpStatus ?? '-'}` : ''}`);
 }
 console.log(`value pair: ${JSON.stringify(results.valuePairs[0]?.zip ? { mcpEqualsTenantBytes: results.valuePairs[0].mcpEqualsTenantBytes, mcpEqualsDirectGet: results.valuePairs[0].mcpEqualsDirectGet, ...results.valuePairs[0].zip } : results.valuePairs[0])}`);
 console.log(`non-GET requests refused by the forwarder: ${results.forwarder.nonGetRefused}`);
