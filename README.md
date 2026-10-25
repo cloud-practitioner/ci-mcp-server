@@ -159,6 +159,7 @@ ci-mcp-server/
 ├── ci-api-config.json        # API configuration (defines all MCP tools)
 ├── mta.yaml                  # BTP Cloud Foundry deployment descriptor
 ├── xs-security.json          # XSUAA OAuth2 configuration
+├── test/                     # `npm test` (offline) and `npm run test:live` (opt-in, GET only)
 ├── default-env.json          # Local dev credentials (gitignored)
 └── LICENSE
 ```
@@ -203,6 +204,53 @@ The MTA deployment provisions three service instances:
 - **Destination** (lite) -- resolves the CPI API endpoint and manages OAuth2 tokens
 - **Connectivity** (lite) -- enables secure backend connectivity
 - **XSUAA** (application) -- handles OAuth2 authentication with role-based access control
+
+## Testing
+
+### Offline contract test: `npm test`
+
+`npm test` needs no network and no credentials. It runs on Node.js 22 and 24 with the built-in `node:test` runner and adds no dependency.
+
+The test starts the pinned `odata-mcp-proxy` over stdio with the real `ci-api-config.json`, a local stub backend and fake credentials. It checks that:
+
+- the tool names equal the set derived from `ci-api-config.json` (215 tools), and `MCP_READ_ONLY=true` registers only the 124 read tools
+- every tool sends the expected HTTP method and URL: `PUT` for the updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources`, `PATCH` for the other updates, and `AccessControl.svc/Rules` for `ProductAccessRules`
+- a binary `$value` download round-trips byte for byte
+- stdout carries only JSON-RPC
+- every `requiredScope` in `ci-api-config.json` is declared in `xs-security.json`, and no role collection claims more than its scopes allow
+- over HTTP, `/health` answers, the server refuses to start on Cloud Foundry without XSUAA, `/mcp` answers 401 with an XSUAA binding, and the working-directory `xs-security.json` sets the OAuth redirect allowlist
+
+When you add or remove a tool in `ci-api-config.json`, update the two tool counts at the top of `test/contract.test.mjs`.
+
+### Live smoke test: `npm run test:live`
+
+`npm run test:live` is opt-in and is not part of `npm test`. It reads from a real tenant and sends only `GET` requests. Run it before you re-pin `odata-mcp-proxy`.
+
+How it stays read-only:
+
+- It starts the proxy with `MCP_READ_ONLY=true`.
+- It puts a local forwarder between the proxy and the tenant. The forwarder passes `GET` and answers every other method with 405.
+- The only `POST` it sends is the OAuth token request to the token URL.
+
+It calls every `_list` tool with `?$top=1`, then without a path when that fails. It skips the 19 sets that hold credentials, keys, key-value data, partner parameters or message data. It calls `GetAllRevisions` with an `apiProxyName` taken from the tenant. It lists the artifacts of a package, and it downloads one iFlow through the proxy with `IntegrationDesigntimeArtifacts_get` and `/$value`. It compares those bytes with the bytes the tenant sent and with a direct authenticated `GET`.
+
+Set these environment variables. The test never prints their values:
+
+| Variable | Value |
+|----------|-------|
+| `CPI_DESTINATION_BASE_URL`, `CPI_DESTINATION_TOKEN_URL`, `CPI_DESTINATION_CLIENT_ID`, `CPI_DESTINATION_CLIENT_SECRET` | OAuth2 client credentials of the Cloud Integration API |
+| `API_DESTINATION_BASE_URL`, `API_DESTINATION_TOKEN_URL`, `API_DESTINATION_CLIENT_ID`, `API_DESTINATION_CLIENT_SECRET` | OAuth2 client credentials of the API Management API portal |
+| `LIVE_RESULTS_FILE` (optional) | Path of the JSON result. The default is `test-results/live-<timestamp>.json`, which git ignores. |
+
+```bash
+# Load your credentials into this shell without printing them, then run the test.
+set -a; . /path/to/your/credentials.env; set +a
+npm run test:live
+```
+
+The command exits with 0 when no unexpected failure occurred. The JSON result holds tool names, HTTP statuses, item counts and sizes. It holds no tenant host, no id, no token and no business data. Use it as evidence in a pull request.
+
+Some tool calls fail on purpose on a Cloud Foundry tenant. See [Query options](#query-options). The test labels them "fails (known limit)", and does not count them as failures.
 
 ## Security
 
