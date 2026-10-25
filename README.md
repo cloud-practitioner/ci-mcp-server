@@ -30,7 +30,7 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 
 | Tool | Operations | Description |
 |------|-----------|-------------|
-| `IntegrationPackages` | list, get, create, update, delete | Logical containers that group iFlows, value mappings, and other design-time artifacts |
+| `IntegrationPackages` | list, get, create, update, delete | Logical containers that group iFlows, value mappings, and other design-time artifacts. Navigation tools such as `IntegrationPackages_IntegrationDesigntimeArtifacts_list` list the design-time artifacts of one package |
 | `IntegrationDesigntimeArtifacts` | list, get, create, update, delete | iFlow design-time definitions (editable integration logic before deployment) |
 | `IntegrationRuntimeArtifacts` | list, get, delete | Deployed integration artifacts (deployment status, version, and errors) |
 | `ValueMappingDesigntimeArtifacts` | list, get, create, delete | Lookup tables that translate codes/identifiers between sender and receiver systems |
@@ -56,7 +56,7 @@ The config file (`ci-api-config.json`) exposes the SAP Cloud Integration OData A
 | `NumberRanges` | list, get | Auto-incrementing counters for generating unique sequence numbers |
 | `MessageStoreEntries` | list, get | Full messages persisted via the Persist step for later retrieval or retry |
 | `JmsBrokers` | list, get | Messaging broker instances provisioned on the tenant |
-| `JmsResources` | list | Individual JMS message queues with depth, capacity, and consumer status |
+| `JmsResources` | list | Individual JMS message queues with message count, size, fill grade, and state (the `Queues` entity set) |
 
 ### Log Files
 
@@ -139,7 +139,36 @@ Some documented API portal services remain unconfigured:
 
 The pinned fork honours both plain `false` and the object form `{ "enabled": false }` in `ci-api-config.json`: either omits the corresponding CRUD tool. The CI entries using the object form do not need migration to plain `false`.
 
-All `_list` tools support OData query parameters: `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`.
+### Query options
+
+Every `_list` tool takes an OData `path` suffix, for example `?$top=10`. The server forwards it unchanged. SAP Cloud Integration does not support every query option on every entity set, and a set that does not support an option answers with HTTP 501, 400 or 500. Check a set in the SAP Business Accelerator Hub before you rely on an option.
+
+Observed with `GET` requests on one Cloud Foundry tenant. A Neo tenant may answer differently.
+
+| Entity set | Result |
+|------------|--------|
+| API Management sets, for example `APIProxies` | `$filter`, `$select`, `$orderby`, `$skip`, `$top` and `$inlinecount` work. `$expand` needs a navigation property that the set declares. |
+| `IntegrationRuntimeArtifacts`, `MessageProcessingLogs` | `$filter`, `$select`, `$orderby`, `$skip` and `$top` work. On `MessageProcessingLogs`, `$expand=Runs` returns 501. |
+| `IntegrationPackages` | `$top`, `$skip` and `$orderby` work. `$select`, `$filter`, `$inlinecount` and `$expand` return 501. |
+| `NumberRanges` | No query option works. Every option, including `$top`, returns 501. |
+| `LogFiles`, `LogFileArchives` | `$top` returns 501. List them without a path. On `LogFiles`, `$select` works and `$orderby` and `$skip` return 501. |
+
+### Sets that cannot be listed
+
+On the same tenant a plain list of these sets returns HTTP 501. The tool description of each set says how to read it:
+
+| Entity set | How to read it |
+|------------|----------------|
+| `IntegrationDesigntimeArtifacts` | `IntegrationPackages_IntegrationDesigntimeArtifacts_list` with path `('<PackageId>')`, or `IntegrationDesigntimeArtifacts_get` with `(Id='<Id>',Version='<Version>')` |
+| `ScriptCollectionDesigntimeArtifacts` | `IntegrationPackages_ScriptCollectionDesigntimeArtifacts_list` with path `('<PackageId>')`, or the get tool |
+| `CustomTagConfigurations` | `CustomTagConfigurations_get` with path `('CustomTags')/$value`. An entity read of the same key also returns 501. |
+| `BuildAndDeployStatus` | `BuildAndDeployStatus_get` with `('<TaskId>')`, where the TaskId comes from a deploy request |
+| `MessageStoreEntries` | `MessageProcessingLogs_MessageStoreEntries_list` with `('<MessageGuid>')`, or `MessageStoreEntries_get` with `('<Id>')` |
+| `JmsBrokers` | `JmsBrokers_get` with `('Broker1')`. Add `?$expand=QueueStates` or `?$expand=InactiveQueues` for queue states. |
+
+The other design-time artifact sets of a package are listed the same way, with `IntegrationPackages_<Set>_list` and the path `('<PackageId>')`.
+
+`JmsResources_list` reads the `Queues` entity set. The name `JmsResources` is the SAP documentation topic, not an entity set. `GetAllRevisions_list` needs the proxy name: pass `?apiProxyName='<name>'`.
 
 ## Prerequisites
 
@@ -159,6 +188,7 @@ ci-mcp-server/
 ├── ci-api-config.json        # API configuration (defines all MCP tools)
 ├── mta.yaml                  # BTP Cloud Foundry deployment descriptor
 ├── xs-security.json          # XSUAA OAuth2 configuration
+├── test/                     # `npm test` (offline) and `npm run test:live` (opt-in, GET only)
 ├── default-env.json          # Local dev credentials (gitignored)
 └── LICENSE
 ```
@@ -203,6 +233,57 @@ The MTA deployment provisions three service instances:
 - **Destination** (lite) -- resolves the CPI API endpoint and manages OAuth2 tokens
 - **Connectivity** (lite) -- enables secure backend connectivity
 - **XSUAA** (application) -- handles OAuth2 authentication with role-based access control
+
+## Testing
+
+### Offline contract test: `npm test`
+
+`npm test` needs no network and no credentials. It runs on Node.js 22 and 24 with the built-in `node:test` runner and adds no dependency.
+
+The test starts the pinned `odata-mcp-proxy` over stdio with the real `ci-api-config.json`, a local stub backend and fake credentials. It checks that:
+
+- the tool names equal the set derived from `ci-api-config.json`, and `MCP_READ_ONLY=true` registers only read tools
+- every tool sends the expected HTTP method and URL: `PUT` for the updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources`, `PATCH` for the other updates, and `AccessControl.svc/Rules` for `ProductAccessRules`
+- a binary `$value` download round-trips byte for byte
+- stdout carries only JSON-RPC
+- every `requiredScope` in `ci-api-config.json` is declared in `xs-security.json`, and no role collection claims more than its scopes allow
+- over HTTP, `/health` answers, the server refuses to start on Cloud Foundry without XSUAA, `/mcp` answers 401 with an XSUAA binding, and the working-directory `xs-security.json` sets the OAuth redirect allowlist
+
+When you add or remove a tool in `ci-api-config.json`, update the two tool counts at the top of `test/contract.test.mjs`.
+
+### Live smoke test: `npm run test:live`
+
+`npm run test:live` is opt-in and is not part of `npm test`. It reads from a real tenant and sends only `GET` requests. Run it before you re-pin `odata-mcp-proxy`.
+
+How it stays read-only:
+
+- It starts the proxy with `MCP_READ_ONLY=true`.
+- It puts a local forwarder between the proxy and the tenant. The forwarder passes `GET` and answers every other method with 405.
+- The only `POST` it sends is the OAuth token request to the token URL.
+
+For listable sets, it requests `?$top=1` first. Only `NumberRanges`, `LogFiles` and `LogFileArchives` also receive a plain unrestricted list, to check their documented `$top` limitation. The [key-addressed sets](#sets-that-cannot-be-listed) receive only the plain-list probe that can return 501. There is no unrestricted fallback for other sets, including `MessageProcessingLogs`, `Policies` and `ResultsUTC`. It skips sensitive sets that hold credentials, keys, key-value data, partner parameters or message data; `SENSITIVE_SETS` in [test/live-smoke.mjs](test/live-smoke.mjs) defines the exclusions.
+
+It calls `GetAllRevisions` with an `apiProxyName` taken from the bounded API proxy list and checks that omitting the parameter returns 400. It searches at most the first 20 packages for an iFlow, checks all configured package-navigation tools, and downloads one iFlow through `IntegrationDesigntimeArtifacts_get` with `/$value`. Failed or malformed discovery is a failure, not an empty-data skip; successful discovery with no packages or iFlows may skip the dependent checks. The forwarder streams responses while hashing and counting their bytes, retaining no response bodies. The download check keeps only the MCP-decoded and direct-GET bytes needed for comparison.
+
+Set these environment variables. Destination URLs and credentials are never printed; the result file path is printed:
+
+| Variable | Value |
+|----------|-------|
+| `CPI_DESTINATION_BASE_URL`, `CPI_DESTINATION_TOKEN_URL`, `CPI_DESTINATION_CLIENT_ID`, `CPI_DESTINATION_CLIENT_SECRET` | OAuth2 client credentials of the Cloud Integration API |
+| `API_DESTINATION_BASE_URL`, `API_DESTINATION_TOKEN_URL`, `API_DESTINATION_CLIENT_ID`, `API_DESTINATION_CLIENT_SECRET` | OAuth2 client credentials of the API Management API portal |
+| `LIVE_RESULTS_FILE` (optional) | Path of the JSON result. The default is `test-results/live-<timestamp>.json`, which git ignores. |
+
+```bash
+# Load your credentials into this shell without printing them, then run the test.
+set -a; . /path/to/your/credentials.env; set +a
+npm run test:live
+```
+
+A completed run prints PASS and exits with 0 when no unexpected failure occurred; otherwise it prints FAIL and exits with 1. Missing required environment variables stop the command before the run with exit code 2 and a list of missing variable names, without creating a report. Required list, navigation, keyed-read, discovery and download failures count as failures. The JSON result holds tool names, fixed diagnostic codes, HTTP statuses, item counts and sizes. Raw proxy, authentication and tenant error text is never published in the report or console output. It holds no tenant host, no id, no token and no business data. Use it as evidence in a pull request.
+
+Some tool calls fail on purpose on a Cloud Foundry tenant. See [Query options](#query-options). Only the documented operation-specific responses are exempt: 501 for a plain list of a key-addressed set, 501 for `$top` on the three unsupported sets (whose plain list must still succeed), and 400 for `GetAllRevisions` without its required parameter. A key-addressed plain-list 501 is labeled "fails (known limit)"; membership in a known-limit set never exempts an unexpected status.
+
+`npm test` also runs the live CLI against a local tenant stub to cover its evidence privacy, bounded requests, download comparison and PASS/FAIL classification without credentials or external requests.
 
 ## Security
 

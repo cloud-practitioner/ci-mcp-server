@@ -33,3 +33,6 @@ default-env.json
 
 # OS specific
 .DS_Store
+
+# Live smoke test results
+test-results/

@@ -60,7 +60,7 @@
     "role-collections": [
     {
       "name": "MCP Viewer",
-      "description": "View and modify SAP Integration Suite data via MCP server",
+      "description": "View SAP Integration Suite data via MCP server",
       "role-template-references": [
         "$XSAPPNAME.MCPViewer"
       ]
