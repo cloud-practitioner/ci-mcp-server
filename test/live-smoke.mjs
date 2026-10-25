@@ -1,4 +1,4 @@
-// Opt-in live smoke test: `npm run test:live`. GET only. Never part of `npm test`.
+// Opt-in real-tenant smoke test: `npm run test:live`. See README.md#testing.
 //
 // Runs the pinned proxy over stdio in read-only mode (MCP_READ_ONLY=true) against
 // a real tenant, behind a local forwarder that serves GET and answers 405 to any

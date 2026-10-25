@@ -242,7 +242,7 @@ The MTA deployment provisions three service instances:
 
 The test starts the pinned `odata-mcp-proxy` over stdio with the real `ci-api-config.json`, a local stub backend and fake credentials. It checks that:
 
-- the tool names equal the set derived from `ci-api-config.json` (223 tools), and `MCP_READ_ONLY=true` registers only the 132 read tools
+- the tool names equal the set derived from `ci-api-config.json`, and `MCP_READ_ONLY=true` registers only read tools
 - every tool sends the expected HTTP method and URL: `PUT` for the updates of `APIProducts`, `RatePlans`, `CertificateStoreReferences` and `CacheResources`, `PATCH` for the other updates, and `AccessControl.svc/Rules` for `ProductAccessRules`
 - a binary `$value` download round-trips byte for byte
 - stdout carries only JSON-RPC
@@ -261,11 +261,11 @@ How it stays read-only:
 - It puts a local forwarder between the proxy and the tenant. The forwarder passes `GET` and answers every other method with 405.
 - The only `POST` it sends is the OAuth token request to the token URL.
 
-For listable sets, it requests `?$top=1` first. Only `NumberRanges`, `LogFiles` and `LogFileArchives` also receive a plain unrestricted list, to check their documented `$top` limitation. The six [key-addressed sets](#sets-that-cannot-be-listed) receive only the plain-list probe that can return 501. There is no unrestricted fallback for other sets, including `MessageProcessingLogs`, `Policies` and `ResultsUTC`. It skips the 19 sets that hold credentials, keys, key-value data, partner parameters or message data.
+For listable sets, it requests `?$top=1` first. Only `NumberRanges`, `LogFiles` and `LogFileArchives` also receive a plain unrestricted list, to check their documented `$top` limitation. The [key-addressed sets](#sets-that-cannot-be-listed) receive only the plain-list probe that can return 501. There is no unrestricted fallback for other sets, including `MessageProcessingLogs`, `Policies` and `ResultsUTC`. It skips sensitive sets that hold credentials, keys, key-value data, partner parameters or message data; `SENSITIVE_SETS` in [test/live-smoke.mjs](test/live-smoke.mjs) defines the exclusions.
 
-It calls `GetAllRevisions` with an `apiProxyName` taken from the bounded API proxy list and checks that omitting the parameter returns 400. It searches at most the first 20 packages for an iFlow, checks all eight package-navigation tools, and downloads one iFlow through `IntegrationDesigntimeArtifacts_get` with `/$value`. Failed or malformed discovery is a failure, not an empty-data skip; successful discovery with no packages or iFlows may skip the dependent checks. The forwarder streams responses while hashing and counting their bytes, retaining no response bodies. The download check keeps only the MCP-decoded and direct-GET bytes needed for comparison.
+It calls `GetAllRevisions` with an `apiProxyName` taken from the bounded API proxy list and checks that omitting the parameter returns 400. It searches at most the first 20 packages for an iFlow, checks all configured package-navigation tools, and downloads one iFlow through `IntegrationDesigntimeArtifacts_get` with `/$value`. Failed or malformed discovery is a failure, not an empty-data skip; successful discovery with no packages or iFlows may skip the dependent checks. The forwarder streams responses while hashing and counting their bytes, retaining no response bodies. The download check keeps only the MCP-decoded and direct-GET bytes needed for comparison.
 
-Set these environment variables. The test never prints their values:
+Set these environment variables. Destination URLs and credentials are never printed; the result file path is printed:
 
 | Variable | Value |
 |----------|-------|
@@ -279,7 +279,7 @@ set -a; . /path/to/your/credentials.env; set +a
 npm run test:live
 ```
 
-The command prints PASS and exits with 0 when no unexpected failure occurred; otherwise it prints FAIL and exits with 1. Required list, navigation, keyed-read, discovery and download failures count as failures. The JSON result holds tool names, fixed diagnostic codes, HTTP statuses, item counts and sizes. Raw proxy, authentication and tenant error text is never published in the report or console output. It holds no tenant host, no id, no token and no business data. Use it as evidence in a pull request.
+A completed run prints PASS and exits with 0 when no unexpected failure occurred; otherwise it prints FAIL and exits with 1. Missing required environment variables stop the command before the run with exit code 2 and a list of missing variable names, without creating a report. Required list, navigation, keyed-read, discovery and download failures count as failures. The JSON result holds tool names, fixed diagnostic codes, HTTP statuses, item counts and sizes. Raw proxy, authentication and tenant error text is never published in the report or console output. It holds no tenant host, no id, no token and no business data. Use it as evidence in a pull request.
 
 Some tool calls fail on purpose on a Cloud Foundry tenant. See [Query options](#query-options). Only the documented operation-specific responses are exempt: 501 for a plain list of a key-addressed set, 501 for `$top` on the three unsupported sets (whose plain list must still succeed), and 400 for `GetAllRevisions` without its required parameter. A key-addressed plain-list 501 is labeled "fails (known limit)"; membership in a known-limit set never exempts an unexpected status.
 
