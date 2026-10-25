@@ -16,7 +16,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { deriveExpectedTools, apiConfig, configPath, proxyCliPath, repoRoot } from './helpers/config.mjs';
+import { configPath, deriveExpectedTools, proxyCliPath, repoRoot } from './helpers/config.mjs';
 
 const REQUIRED = ['CPI_DESTINATION', 'API_DESTINATION'].flatMap((p) => ['BASE_URL', 'TOKEN_URL', 'CLIENT_ID', 'CLIENT_SECRET'].map((s) => `${p}_${s}`));
 const missing = REQUIRED.filter((name) => !process.env[name]);
