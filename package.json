@@ -17,6 +17,6 @@
     "node": "22.x"
   },
   "dependencies": {
-    "odata-mcp-proxy": "git+https://github.com/cloud-practitioner/odata-mcp-proxy.git#c6eeb1bf5c360863ce1ba2523bfe3d389fff8429"
+    "odata-mcp-proxy": "git+https://github.com/cloud-practitioner/odata-mcp-proxy.git#d8d5c9775889f23d9bdb68b7f2d558e7abcece47"
   }
 }

@@ -143,6 +143,8 @@ The pinned fork honours both plain `false` and the object form `{ "enabled": fal
 
 Every `_list` tool takes an OData `path` suffix, for example `?$top=10`. The server forwards it unchanged. SAP Cloud Integration does not support every query option on every entity set, and a set that does not support an option answers with HTTP 501, 400 or 500. Check a set in the SAP Business Accelerator Hub before you rely on an option.
 
+A tool call with an argument that the tool does not declare, for example `unknownArg`, fails with a tool error before any request to the tenant. Use only the arguments in the tool's input schema: `path`, `body` and `headers`.
+
 Observed with `GET` requests on one Cloud Foundry tenant. A Neo tenant may answer differently.
 
 | Entity set | Result |
@@ -300,6 +302,10 @@ The XSUAA configuration (`xs-security.json`) defines three role templates:
 OAuth2 redirect URIs are configured in the app-root [xs-security.json](xs-security.json) for Claude.ai, Cursor, Microsoft Teams, and local development. With `npm start`, the proxy loads that file from the app's working directory. `XS_SECURITY_JSON_PATH`, if set, takes precedence (relative paths resolve from the working directory); an invalid explicit file fails startup. If no working-directory file exists, the proxy falls back to its bundled configuration.
 
 With XSUAA bound over HTTP, OAuth uses the shared `@arc-mcp/xsuaa-auth` provider. Dynamic client registration accepts only public clients (`token_endpoint_auth_method: "none"`) and `client_secret_post` clients (the default); `client_secret_basic` and other methods are rejected. Registered redirect URIs must match the configured allowlist.
+
+Before it sends the browser to XSUAA, the proxy shows an **Approve and continue** or **Deny** page that names the client and its return address. This page also appears when an SSO session already exists. Each registration gets a random suffix on its `client_name` (for example `My Client #Xk3...`), so two registrations with the same metadata receive different client IDs and secrets. The approval page shows the suffixed name. A reconnect or token refresh does not show the page again. See [GHSA-6935-r3wv-f646](https://github.com/arc-mcp/arc-1/security/advisories/GHSA-6935-r3wv-f646).
+
+`MCP_READ_ONLY` accepts only `true`, `false`, `1` and `0`, in any case. Unset or empty means off. Any other value, for example `yes`, stops the server at startup.
 
 The proxy disables the MCP SDK's per-IP rate limits on authorization, token, registration, and revocation endpoints. Apply rate limiting at the ingress when exposing these endpoints.
 
