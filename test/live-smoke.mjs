@@ -17,7 +17,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { deriveExpectedTools, proxyCliPath, repoRoot } from './helpers/config.mjs';
+import { configPath, deriveExpectedTools, proxyCliPath, repoRoot } from './helpers/config.mjs';
 
 const REQUIRED = ['CPI_DESTINATION', 'API_DESTINATION'].flatMap((p) => ['BASE_URL', 'TOKEN_URL', 'CLIENT_ID', 'CLIENT_SECRET'].map((s) => `${p}_${s}`));
 const missing = REQUIRED.filter((name) => !process.env[name]);
@@ -115,7 +115,7 @@ async function fetchToken(prefix) {
 // ---------------------------------------------------------------- MCP client
 function startProxy(env) {
   const cwd = mkdtempSync(join(tmpdir(), 'ci-mcp-live-'));
-  const child = spawn(process.execPath, [proxyCliPath], {
+  const child = spawn(process.execPath, [proxyCliPath, '--config', configPath], {
     cwd,
     env: { PATH: process.env.PATH ?? '', MCP_TRANSPORT: 'stdio', MCP_READ_ONLY: 'true', ...env },
     stdio: ['pipe', 'pipe', 'ignore'], // stderr is dropped on purpose: no log line can leak into the result

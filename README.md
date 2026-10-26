@@ -2,7 +2,7 @@
 
 An MCP (Model Context Protocol) server for SAP Cloud Integration (CPI), powered by [odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy). It exposes CPI OData APIs as MCP tools, allowing AI assistants like Claude to manage your integration landscape through natural language.
 
-The API tools are defined through a single JSON config file -- no custom tool handlers required.
+The entire server is defined through a single JSON config file -- no custom code required.
 
 ## How It Works
 
@@ -187,7 +187,6 @@ The other design-time artifact sets of a package are listed the same way, with `
 ```
 ci-mcp-server/
 ├── package.json              # Start script + odata-mcp-proxy dependency
-├── server.mjs                # App entry point with strict read-only startup validation
 ├── ci-api-config.json        # API configuration (defines all MCP tools)
 ├── mta.yaml                  # BTP Cloud Foundry deployment descriptor
 ├── xs-security.json          # XSUAA OAuth2 configuration
@@ -223,7 +222,7 @@ Create a `default-env.json` with your BTP service bindings (XSUAA, Destination, 
 npm start
 ```
 
-This runs `server.mjs`, which starts the pinned proxy with `ci-api-config.json`. See [Security](#security) for the read-only startup rules.
+This runs `odata-mcp-proxy --config ci-api-config.json`.
 
 ### 4. Deploy to BTP
 
@@ -308,7 +307,7 @@ Before it sends the browser to XSUAA, the proxy shows an **Approve and continue*
 
 Each dynamic registration gets a random suffix on its `client_name` (for example `My Client #Xk3...`), so two registrations with the same metadata receive different client IDs and secrets. The displayed client name remains client-supplied and unverified; it is not proof of the client's identity.
 
-`MCP_READ_ONLY` accepts only `true`, `false`, `1` and `0`, in any case. `true` or `1` enables read-only mode; `false`, `0`, unset or empty means off. Any other value, including whitespace-only or whitespace-padded values, stops the server at startup. The entry point validates the value after loading `default-env.json` and `.env`.
+`MCP_READ_ONLY` accepts only `true`, `false`, `1` and `0`, in any case. `true` or `1` enables read-only mode; `false`, `0`, unset or empty means off. Any other value, for example `yes`, stops the server at startup. The proxy trims surrounding whitespace before it checks the value.
 
 The proxy disables the MCP SDK's per-IP rate limits on authorization, token, registration, and revocation endpoints. Apply rate limiting at the ingress when exposing these endpoints.
 
