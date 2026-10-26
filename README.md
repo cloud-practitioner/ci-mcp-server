@@ -2,7 +2,7 @@
 
 An MCP (Model Context Protocol) server for SAP Cloud Integration (CPI), powered by [odata-mcp-proxy](https://github.com/cloud-practitioner/odata-mcp-proxy). It exposes CPI OData APIs as MCP tools, allowing AI assistants like Claude to manage your integration landscape through natural language.
 
-The entire server is defined through a single JSON config file -- no custom code required.
+The API tools are defined through a single JSON config file -- no custom tool handlers required.
 
 ## How It Works
 
@@ -223,7 +223,7 @@ Create a `default-env.json` with your BTP service bindings (XSUAA, Destination, 
 npm start
 ```
 
-This runs `server.mjs`, which starts the pinned proxy with `ci-api-config.json` and rejects whitespace-padded `MCP_READ_ONLY` values, including whitespace-only values, after loading local environment files.
+This runs `server.mjs`, which starts the pinned proxy with `ci-api-config.json`. See [Security](#security) for the read-only startup rules.
 
 ### 4. Deploy to BTP
 
@@ -304,9 +304,11 @@ OAuth2 redirect URIs are configured in the app-root [xs-security.json](xs-securi
 
 With XSUAA bound over HTTP, OAuth uses the shared `@arc-mcp/xsuaa-auth` provider. Dynamic client registration accepts only public clients (`token_endpoint_auth_method: "none"`) and `client_secret_post` clients (the default); `client_secret_basic` and other methods are rejected. Registered redirect URIs must match the configured allowlist.
 
-Before it sends the browser to XSUAA, the proxy shows an **Approve and continue** or **Deny** page that names the client and its return address. This page also appears when an SSO session already exists. Each registration gets a random suffix on its `client_name` (for example `My Client #Xk3...`), so two registrations with the same metadata receive different client IDs and secrets. The approval page shows the suffixed name. A reconnect or token refresh does not show the page again. See [GHSA-6935-r3wv-f646](https://github.com/arc-mcp/arc-1/security/advisories/GHSA-6935-r3wv-f646).
+Before it sends the browser to XSUAA, the proxy shows an **Approve and continue** or **Deny** page that names the client and its return address. Approval is required for every new authorization flow, even when an SSO session already exists. A transport reconnect with a valid token or a token refresh does not show the page again. See [GHSA-6935-r3wv-f646](https://github.com/arc-mcp/arc-1/security/advisories/GHSA-6935-r3wv-f646).
 
-`MCP_READ_ONLY` accepts only `true`, `false`, `1` and `0`, in any case. Unset or empty means off. Any other value, for example `yes`, stops the server at startup.
+Each dynamic registration gets a random suffix on its `client_name` (for example `My Client #Xk3...`), so two registrations with the same metadata receive different client IDs and secrets. The displayed client name remains client-supplied and unverified; it is not proof of the client's identity.
+
+`MCP_READ_ONLY` accepts only `true`, `false`, `1` and `0`, in any case. `true` or `1` enables read-only mode; `false`, `0`, unset or empty means off. Any other value, including whitespace-only or whitespace-padded values, stops the server at startup. The entry point validates the value after loading `default-env.json` and `.env`.
 
 The proxy disables the MCP SDK's per-IP rate limits on authorization, token, registration, and revocation endpoints. Apply rate limiting at the ingress when exposing these endpoints.
 
